@@ -17,7 +17,7 @@ More details about this study can be found in Gao et al., 2025: doi
 ### notebooks: 
 - **Emission_observations_to_emission_events_case_study_1.ipynb** -> Creating emission events by using emission observations in Sample_site_simulated_observations_case_1.xlsx.
 - **Estimate_duration_and_rate_uncertainty_for_PRE_case_study_1.ipynb** -> Demonstrating how LPR and NRR can be used to simulate the duraton uncertainty for partially resolved events.
-- **Emissions_from_unresolved_events_case_study_1.ipynb** -> Demonstrating how Johnson et al., (2023) can be integrated into emission event framewokr to simulate emissions from unresolved events.
+- **Emissions_from_unresolved_events_case_study_1.ipynb** -> Demonstrating how Johnson et al., (2023) can be integrated into emission event framework to simulate emissions from unresolved events.
 -  **Event_sankey_diagram_case_study_1.ipynb** -> create sankey diagram of emission observation and emission events.
 -  **Plot_results_case_study_1.ipynb** -> Plot bar charts of emissions from RE, PRE, and UE. 
 
