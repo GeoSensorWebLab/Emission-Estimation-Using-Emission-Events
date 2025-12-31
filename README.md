@@ -1,41 +1,313 @@
-# Emission-Estimation-Using-Emission-Events
-This repository is created to demonstrate the process of estimating emissions using emission events.
-![Sankey Chart](https://github.com/user-attachments/assets/ff045a6c-9c3a-4a8d-8939-03231d9506c3)
+# Emission Estimation Using Emission Events (EAEET)
 
-More details about this study can be found in Gao et al., 2025: doi 
+A comprehensive web-based toolkit for estimating emissions using emission events. This application provides an interactive interface for converting emission observations to emission events, running Monte Carlo simulations, and analyzing emission data with uncertainty quantification.
 
-# Both jupyter notebooks and excel/csv files are by case study 
+![Sankey Chart](case%20study/Sankey%20Chart.png)
 
-## Case study 1: 
-![reconciled_results_case_study_1](https://github.com/user-attachments/assets/401e48cc-367f-4f35-b3a7-86718d8ba936)
+## Overview
 
-### Input data files 
-- **Sample_site_simulated_observations_case_1.xlsx**: 146 Synthetic emission observations, inlcuding 89 CMS measurements, 4 flyover survey records , 4 OGI inspection records and 49 venting data points.
-- **Sample_leak_rate.csv**: component-scale leak rates from datasets organized by Rutherford et al., 2021
-- **weather_permian.nc**: weather data in permian basin downloaded from ERA5
-  
-### notebooks: 
-- **Emission_observations_to_emission_events_case_study_1.ipynb** -> Creating emission events by using emission observations in Sample_site_simulated_observations_case_1.xlsx.
-- **Estimate_duration_and_rate_uncertainty_for_PRE_case_study_1.ipynb** -> Demonstrating how LPR and NRR can be used to simulate the duraton uncertainty for partially resolved events.
-- **Emissions_from_unresolved_events_case_study_1.ipynb** -> Demonstrating how Johnson et al., (2023) can be integrated into emission event framework to simulate emissions from unresolved events.
--  **Event_sankey_diagram_case_study_1.ipynb** -> create sankey diagram of emission observation and emission events.
--  **Plot_results_case_study_1.ipynb** -> Plot bar charts of emissions from RE, PRE, and UE. 
+The Emission Estimation Using Emission Events (EAEET) toolkit is designed to help researchers and analysts:
 
- ### Output data file: 
- - **merged_observations_case_study_1.csv**: Emission events initialized from 146 Synthetic emission observations.
- - **merged_events_case_study_1.csv**: Emission events after merged by following time algebra and spatial correlation.
- - **events_with_uncertianty_case_study_1.csv**: Emission events (only REs and PREs) with uncertainties.
+- Convert emission observations into structured emission events
+- Merge events using temporal and spatial relationships (Allen's Interval Algebra)
+- Simulate emissions below detection limits
+- Bootstrap emissions from unmeasured events
+- Quantify uncertainties in emission estimates
+- Visualize results with interactive charts and Sankey diagrams
 
- ## Case study 2: 
- ![reconciled_results_case_study_2](https://github.com/user-attachments/assets/7cd28820-369d-4b06-8ac6-e9a0795e3da2)
+More details about this study can be found in Gao et al., 2025.
 
- ### Input data files 
- - **Sample_site_simulated_observations_case_1.xlsx**: 36 Synthetic CMS observations.
+## Features
 
-### notebooks: 
-- **Bootstrap_unresolved_events_case_study_2.ipynb** -> Creating emission events by suing 36 CMS observations and also bootstrapping emissions from unresolved events.
-- **Plot_results_case_study_2.ipynb** -> Plot bar charts of emissions from RE, PRE, and UE.
+### Core Functionality
 
-### Output data file: 
- - **events_with_uncertianty_case_study_2.csv**: Emission events with uncertainties.
-   
+1. **Data Loading & Mapping**
+   - Upload CSV/Excel files with emission observations
+   - Interactive column mapping interface
+   - Data validation and quality checks
+
+2. **Emission Event Conversion**
+   - Convert observations to emission events using UML model structure
+   - Support for intermittent and continuous emission characteristics
+   - Temporal event merging using Allen's Interval Algebra
+   - Spatial correlation handling
+
+3. **Uncertainty Estimation**
+   - Duration uncertainty simulation for partially resolved events
+   - Rate uncertainty quantification
+   - Leak Production Rate (LPR) and Non-Repair Rate (NRR) integration
+
+4. **Simulation Capabilities**
+   - **Simulate Below Detection Limit**: Estimates emissions below MDL using component-level leak data
+   - **Bootstrap For Unmeasured Emissions**: Extrapolates emissions from measured events
+   - Monte Carlo iterations with parallel processing
+   - Wind condition consideration (optional)
+   - Custom component-level leak data upload
+
+5. **Visualization & Analysis**
+   - Interactive Sankey diagrams showing observation-to-event flow
+   - Emission event tables with filtering
+   - Distribution histograms
+   - Results comparison charts
+   - Bottom-up inventory comparison
+
+## Installation
+
+### Prerequisites
+
+- Python 3.8 or higher
+- pip package manager
+
+### Setup
+
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd Emission-Estimation-Using-Emission-Events
+```
+
+2. Navigate to the application directory:
+```bash
+cd EAEET_v1
+```
+
+3. Install required packages:
+```bash
+pip install -r requirements.txt
+```
+
+**Note**: For wind data functionality, you may need to install `netCDF4` separately:
+```bash
+pip install netCDF4
+```
+
+### Required Packages
+
+- `dash>=2.14.0` - Web framework
+- `pandas>=1.5.0` - Data manipulation
+- `numpy>=1.23.0` - Numerical computing
+- `scipy>=1.9.0` - Scientific computing
+- `plotly>=5.14.0` - Interactive visualizations
+- `netCDF4` (optional) - For wind data support
+
+## Usage
+
+### Running the Application
+
+1. Start the Dash application:
+```bash
+cd EAEET_v1
+python EAEET_dash_app.py
+```
+
+2. Open your web browser and navigate to:
+```
+http://localhost:8050
+```
+
+### Workflow
+
+1. **Load Emissions Data**
+   - Upload your emission observation data (CSV or Excel)
+   - Map columns to required fields (ID, Rate, Time, Source)
+   - Review and validate the data
+
+2. **Create Emission Events**
+   - Convert observations to emission events
+   - Review the converted events table
+   - View the Sankey diagram showing observation-to-event relationships
+
+3. **Configure Emission Characteristics**
+   - Select whether emissions are intermittent or continuous
+   - For continuous emissions: specify producing hours
+   - Optionally simulate duration uncertainty
+
+4. **Run Simulations**
+   - Select estimation approach:
+     - **Simulate Below Detection Limit**: Requires measurement technology, MDL, and optional wind data
+     - **Bootstrap For Unmeasured Emissions**: Uses rate and duration distributions from events
+   - Configure simulation parameters:
+     - Processing resolution (by site, by site and source, by site and equipment)
+     - Start and end dates
+     - Number of Monte Carlo iterations
+   - Upload custom component-level leak data (optional)
+   - Upload custom wind speed data (optional, for below MDL approach)
+
+5. **Review Results**
+   - View simulation results with uncertainty bounds
+   - Compare with bottom-up inventory (optional)
+   - Export results as CSV or JSON
+
+## Project Structure
+
+```
+Emission-Estimation-Using-Emission-Events/
+├── EAEET_v1/                          # Main application directory
+│   ├── EAEET_dash_app.py              # Main Dash application
+│   ├── components.py                  # UI components and layout
+│   ├── emission_event_converter.py    # Event conversion logic
+│   ├── simulations.py                  # Simulation functions
+│   ├── utils.py                       # Utility functions
+│   ├── requirements.txt               # Python dependencies
+│   ├── sample_leak_rate.csv          # Default leak rate data
+│   └── weather_permian.nc            # Default wind data (NetCDF)
+├── case study/                        # Case study notebooks and data
+│   ├── README.md                      # Case study documentation
+│   ├── *.ipynb                        # Jupyter notebooks
+│   ├── *.csv                          # Data files
+│   └── *.xlsx                         # Sample data files
+├── LICENSE                            # GPL v3 License
+└── README.md                          # This file
+```
+
+## Key Modules
+
+### `EAEET_dash_app.py`
+Main application file containing:
+- Dash app initialization
+- Callback functions for user interactions
+- Data processing and validation
+- Results handling
+
+### `components.py`
+UI components including:
+- Navigation bar
+- Section layouts (Data Investigation, Simulations, Results, Uncertainty Calculator)
+- Modal dialogs
+- Charts and tables
+
+### `emission_event_converter.py`
+Core conversion logic:
+- Converts observations to emission events
+- Implements Allen's Interval Algebra for temporal merging
+- Handles spatial correlation
+- Supports intermittent and continuous emissions
+
+### `simulations.py`
+Simulation functions:
+- `simulate_below_mdl()`: Estimates emissions below detection limit
+- `extrapolation()`: Bootstrap simulation for unmeasured emissions
+- `simulate_duration_uncertainty()`: Duration uncertainty simulation
+- Parallel processing support for large iterations
+
+### `utils.py`
+Utility functions:
+- Distribution fitting (lognormal, normal, uniform, exponential, Weibull, gamma)
+- Quantification and duration corrections
+- Probability of detection calculations
+
+## Case Studies
+
+The repository includes two case studies demonstrating different use cases:
+
+### Case Study 1
+- **Input**: 146 synthetic emission observations (CMS, flyover, OGI, venting)
+- **Notebooks**:
+  - `Emission_observations_to_emission_events_case_study_1.ipynb`: Event creation
+  - `Estimate_duration_and_rate_uncertainty_for_PRE_case_study_1.ipynb`: Uncertainty estimation
+  - `Emissions_from_unresolved_events_case_study_1.ipynb`: Unresolved events simulation
+  - `Event_sankey_diagram_case_study_1.ipynb`: Visualization
+  - `Plot_results_case_study_1.ipynb`: Results plotting
+
+### Case Study 2
+- **Input**: 36 synthetic CMS observations
+- **Notebooks**:
+  - `Bootstrap_unresolved_events_case_study_2.ipynb`: Bootstrap simulation
+  - `Plot_results_case_study_2.ipynb`: Results plotting
+
+See `case study/README.md` for detailed documentation.
+
+## Data Requirements
+
+### Input Data Format
+
+Your emission observation data should include:
+- **ID**: Unique identifier for each observation
+- **Rate**: Emission rate (kg/hr)
+- **Time/Timestamp**: When the observation was made
+- **Source**: Source location or identifier
+- **Source Scale**: Site, equipment, or component level
+- **Optional**: Cause, duration, emission characteristics
+
+### Component-Level Leak Data
+
+For "Simulate Below Detection Limit" approach:
+- CSV file with leak rates in kg/hr
+- One column containing leak rate values
+- Default sample data provided (`sample_leak_rate.csv`)
+
+### Wind Data
+
+For wind-aware simulations:
+- NetCDF file with wind speed data (u10, v10 components)
+- Or CSV file with wind speed column (m/s)
+- Default weather data provided (`weather_permian.nc`)
+
+## Simulation Approaches
+
+### 1. Simulate Below Detection Limit
+
+Estimates emissions that occur below the minimum detection limit of measurement technologies.
+
+**Required Parameters:**
+- Measurement technology (InsightM, Qube, SeekOps, Bridger Photonic, PoMELO, or custom MDL)
+- Component-level leak data (default or user-uploaded)
+- Optional: Wind speed data
+
+**Output:**
+- Total emissions (measured + unmeasured) with uncertainty bounds
+
+### 2. Bootstrap For Unmeasured Emissions
+
+Extrapolates emissions from measured events using bootstrap resampling.
+
+**Required Parameters:**
+- Rate and duration distributions from emission events
+- Processing resolution
+- Number of Monte Carlo iterations
+
+**Output:**
+- Extrapolated emissions with uncertainty bounds
+
+## Features & Capabilities
+
+- ✅ Interactive web interface
+- ✅ CSV and Excel file upload
+- ✅ Column mapping interface
+- ✅ Temporal event merging (Allen's Interval Algebra)
+- ✅ Spatial correlation handling
+- ✅ Monte Carlo simulations with parallel processing
+- ✅ Wind condition consideration
+- ✅ Custom leak data upload
+- ✅ Custom wind data upload
+- ✅ Uncertainty quantification
+- ✅ Interactive visualizations (Sankey diagrams, charts)
+- ✅ Results export (CSV, JSON)
+- ✅ Bottom-up inventory comparison
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 (GPL-3.0). See the [LICENSE](LICENSE) file for details.
+
+## Citation
+
+If you use this toolkit in your research, please cite:
+
+Gao et al., 2025 (DOI to be added)
+
+## Contributing
+
+This software is provided for academic research and educational purposes. Contributions and improvements are welcome.
+
+## Support
+
+For questions, issues, or contributions, please refer to the case study documentation or contact the authors.
+
+## Disclaimer
+
+This software is provided exclusively for academic research and educational purposes. It is not licensed for commercial use, operational deployment, or regulatory compliance without explicit written agreement.
+
+---
+
+**Note**: Make sure you have all required dependencies installed before running the application. For wind data functionality, ensure `netCDF4` is installed if you plan to use default weather data.
+
