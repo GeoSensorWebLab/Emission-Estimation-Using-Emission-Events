@@ -1,4 +1,4 @@
-# Emission Estimation Using Emission Events (EAEET)
+# Event-based Anualized Emission Estimation Toolkit (EAEET)
 
 A comprehensive web-based toolkit for estimating emissions using emission events. This application provides an interactive interface for converting emission observations to emission events, running Monte Carlo simulations, and analyzing emission data with uncertainty quantification.
 
@@ -6,7 +6,7 @@ A comprehensive web-based toolkit for estimating emissions using emission events
 
 ## Overview
 
-The Emission Estimation Using Emission Events (EAEET) toolkit is designed to help researchers and analysts:
+The Event-based Anualized Emission Estimation Toolkit (EAEET) is designed to help researchers and analysts:
 
 - Convert emission observations into structured emission events
 - Merge events using temporal and spatial relationships (Allen's Interval Algebra)
