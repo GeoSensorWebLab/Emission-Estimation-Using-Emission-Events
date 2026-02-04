@@ -30,8 +30,9 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
     Args:
         data: DataFrame with uploaded data
         column_mapping: Dictionary mapping required fields to actual column names.
-                       Required keys: 'rate', 'id', 'source_scale', 'source'
-                       Optional keys: 'cause', 'duration', 'time', 'emission_characteristics'
+                       Required keys: 'rate', 'id', 'source'
+                       Optional keys: 'cause', 'duration', 'time', 'emission_characteristics', 'uncertainties', 'source_scale'
+                       Note: 'source_scale' defaults to 'site' if not provided
         time_column: Name of time/timestamp column (optional, will try to auto-detect)
         emission_characteristics: 'continuous' or 'intermittent'. If 'continuous', each row is an independent event.
                                  If 'intermittent', events are merged using Allen's interval algebra.
@@ -45,23 +46,27 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
     # Use column mapping if provided, otherwise try to auto-detect
     if column_mapping:
         rate_col = column_mapping.get('rate')
+        uncertainties_col = column_mapping.get('uncertainties')
         id_col = column_mapping.get('id')
-        # source_scale is now a direct enum value ('site', 'equipment', 'component'), not a column name
-        source_scale_value = column_mapping.get('source_scale')
+        # source_scale removed from mapping - defaults to 'site'
+        source_scale_value = column_mapping.get('source_scale', 'site')  # Default to 'site' if not provided
         source_col = column_mapping.get('source')
         cause_col = column_mapping.get('cause')
         start_time_col = column_mapping.get('start_time')
         end_time_col = column_mapping.get('end_time')
+        observation_type_col = column_mapping.get('observation_type')  # Optional: column indicating observation type (used to determine operational status)
         time_col = time_column or column_mapping.get('time')
     else:
         # Auto-detect columns
         rate_col = 'rate' if 'rate' in data.columns else None
+        uncertainties_col = 'uncertainties' if 'uncertainties' in data.columns else None
         id_col = 'id' if 'id' in data.columns else None
         source_scale_value = 'site'  # Default value
         source_col = 'source' if 'source' in data.columns else None
         cause_col = 'cause' if 'cause' in data.columns else None
         start_time_col = 'start_time' if 'start_time' in data.columns else ('startTime' if 'startTime' in data.columns else None)
         end_time_col = 'end_time' if 'end_time' in data.columns else ('endTime' if 'endTime' in data.columns else None)
+        observation_type_col = 'observation_type' if 'observation_type' in data.columns else ('observationType' if 'observationType' in data.columns else ('Observation_Type' if 'Observation_Type' in data.columns else None))
         time_col = time_column
     
     # Auto-detect time column if not provided
@@ -80,8 +85,9 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
         raise ValueError("ID column is required but not found or not mapped")
     if not source_col or source_col not in data.columns:
         raise ValueError("Source column is required but not found or not mapped")
-    if not source_scale_value or source_scale_value not in ['site', 'equipment', 'component']:
-        raise ValueError("Source scale must be one of: site, equipment, or component")
+    # source_scale defaults to 'site' if not provided
+    if not source_scale_value:
+        source_scale_value = 'site'
     
     # Get emission characteristics from mapping or parameter
     emission_char = column_mapping.get('emission_characteristics', emission_characteristics) if column_mapping else emission_characteristics
@@ -89,21 +95,23 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
     
     # Step 1: Create initial events from detections with temporal boundaries
     if time_col and time_col in data.columns:
-        # Use temporal event creation logic
-        emission_events = create_initial_events(data, {
-            'rate': rate_col,
-            'id': id_col,
-            'source': source_col,
-            'source_scale': source_scale_value,  # This is now the enum value, not a column
-            'cause': cause_col,
-            'start_time': start_time_col,
-            'end_time': end_time_col
-        }, time_col)
-        
-        # Step 2: Merge events using Allen's interval algebra (only if intermittent)
-        if emission_char == 'intermittent':
-            emission_events = merge_events_by_allen_algebra(emission_events)
-        # If continuous, skip merging - each row is an independent event
+            # Use temporal event creation logic
+            emission_events = create_initial_events(data, {
+                'rate': rate_col,
+                'uncertainties': uncertainties_col,
+                'id': id_col,
+                'source': source_col,
+                'source_scale': source_scale_value,  # This is now the enum value, not a column
+                'cause': cause_col,
+                'start_time': start_time_col,
+                'end_time': end_time_col,
+                'observation_type': observation_type_col  # Pass observation_type column mapping
+            }, time_col)
+            
+            # Step 2: Merge events using Allen's interval algebra (only if intermittent)
+            if emission_char == 'intermittent':
+                emission_events = merge_events_by_allen_algebra(emission_events)
+            # If continuous, skip merging - each row is an independent event
     else:
         # Fallback to original logic if no time column
         emission_events = []
@@ -112,6 +120,15 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
             rate = pd.to_numeric(row.get(rate_col, 0), errors='coerce')
             if pd.isna(rate) or rate == 0:
                 continue
+            
+            # Get uncertainties if available
+            uncertainties = None
+            if uncertainties_col and uncertainties_col in data.columns:
+                uncertainties_val = row.get(uncertainties_col)
+                if pd.notna(uncertainties_val):
+                    uncertainties = pd.to_numeric(uncertainties_val, errors='coerce')
+                    if pd.isna(uncertainties):
+                        uncertainties = None
             
             original_data_id = str(row.get(id_col, idx))
             # Generate UUID for event ID
@@ -150,6 +167,18 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
                 if cause_value == 'nan' or cause_value == '':
                     cause_value = None
             
+            # Get observation_type from original data to determine operational status
+            # Resolved events (RE): observation_type == "operation"
+            # Partially resolved events (PRE): observation_type != "operation"
+            is_operational = False  # Track if this is an operational event
+            if observation_type_col and observation_type_col in data.columns:
+                observation_type_value = str(row.get(observation_type_col, '')).strip().lower()
+                # Check if observation_type equals "operation" (case-insensitive)
+                if observation_type_value == 'operation':
+                    is_operational = True
+                else:
+                    is_operational = False
+            
             # Calculate quantity (rate * duration)
             quantity = rate * duration if duration > 0 else rate
             
@@ -158,6 +187,7 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
                 'id': event_id,
                 'original_data_id': original_data_id,  # Store original data ID separately
                 'eventType': 'Emission Event',
+                'is_operational': is_operational,  # Track operational status (True if observation_type == "operation")
                 'quantity': {
                     'value': quantity,
                     'unit': 'kg'
@@ -179,6 +209,7 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
                     'physicalSource': source_name
                 },
                 'rate': rate,
+                'uncertainties': uncertainties,
                 'source_scale': source_scale,
                 'source_name': source_name,
                 'startTime': start_time.isoformat() if start_time else None,
@@ -210,6 +241,13 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
         if end_time and not isinstance(end_time, str):
             end_time = end_time.isoformat() if hasattr(end_time, 'isoformat') else str(end_time)
         
+        # Determine event_type: RE if operational (observation_type == "operation"), PRE if non-operational (observation_type != "operation")
+        is_operational = e.get('is_operational', False)
+        if is_operational:
+            event_type = 'RE'  # Resolved - includes data with observation_type == "operation"
+        else:
+            event_type = 'PRE'  # Partially Resolved - only includes data with observation_type != "operation"
+        
         event_dict = {
             'id': e['id'],
             'rate': e['rate'],
@@ -218,11 +256,25 @@ def convert_to_emission_event_model(data: pd.DataFrame, column_mapping: Optional
             'sourceLocation': e['source']['sourceLocation'],
             'startTime': start_time,
             'endTime': end_time,
-            'merged_from': merged_from_display
+            'merged_from': merged_from_display,
+            'event_type': event_type  # Add event_type to output
         }
+        # Add uncertainties if available
+        if 'uncertainties' in e and e['uncertainties'] is not None:
+            event_dict['uncertainties'] = e['uncertainties']
         events_list.append(event_dict)
     
     events_df = pd.DataFrame(events_list)
+    
+    # Calculate statistics: resolved vs partially resolved events
+    resolved_count = len(events_df[events_df['event_type'] == 'RE']) if 'event_type' in events_df.columns else 0
+    partially_resolved_count = len(events_df[events_df['event_type'] == 'PRE']) if 'event_type' in events_df.columns else 0
+    total_events = len(events_df)
+    
+    # Store statistics as attributes (can be accessed via events_df.attrs)
+    events_df.attrs['resolved_count'] = resolved_count
+    events_df.attrs['partially_resolved_count'] = partially_resolved_count
+    events_df.attrs['total_events'] = total_events
     
     return events_df
 
@@ -301,9 +353,7 @@ def can_merge_events(event1: Dict, event2: Dict) -> bool:
     Check if two events can be merged based on Allen's interval algebra.
     Events can be merged if they:
     1. Have the same source
-    2. Have temporal relations that indicate they should be merged:
-       - meets, overlaps, starts, during, finishes, equals
-       - NOT before (they are separate)
+    2. Overlap or are adjacent in time (not separated by a gap)
     
     Args:
         event1: First event dictionary
@@ -316,8 +366,12 @@ def can_merge_events(event1: Dict, event2: Dict) -> bool:
     source1 = event1.get('source', {}).get('physicalSource', '')
     source2 = event2.get('source', {}).get('physicalSource', '')
     
+    # Also check sourceLocation for compatibility
     if source1 != source2:
-        return False
+        source_loc1 = event1.get('source', {}).get('sourceLocation', '')
+        source_loc2 = event2.get('source', {}).get('sourceLocation', '')
+        if source_loc1 != source_loc2:
+            return False
     
     # Get time intervals
     start1 = event1.get('startTime')
@@ -328,18 +382,31 @@ def can_merge_events(event1: Dict, event2: Dict) -> bool:
     if None in [start1, end1, start2, end2]:
         return False
     
-    # Check Allen relations
-    relations = check_allen_relation(start1, end1, start2, end2)
+    # Convert to datetime if needed
+    if isinstance(start1, str):
+        start1 = pd.to_datetime(start1)
+    if isinstance(end1, str):
+        end1 = pd.to_datetime(end1)
+    if isinstance(start2, str):
+        start2 = pd.to_datetime(start2)
+    if isinstance(end2, str):
+        end2 = pd.to_datetime(end2)
     
-    # Can merge if not 'before' relation (i.e., they overlap or are adjacent)
-    mergeable_relations = ['meets', 'overlaps', 'starts', 'during', 'finishes', 'equals']
-    return any(rel in relations for rel in mergeable_relations)
+    # Check if events overlap or are adjacent
+    # Two events overlap if: start1 < end2 AND start2 < end1
+    # They are adjacent if: end1 == start2 OR end2 == start1
+    # They can be merged if they overlap OR are adjacent (meets relation)
+    overlap = (start1 < end2) and (start2 < end1)
+    adjacent = (end1 == start2) or (end2 == start1)
+    
+    return overlap or adjacent
 
 
 def merge_events(event1: Dict, event2: Dict) -> Dict:
     """
     Merge two events into a single event.
     - Average the rates
+    - Average the uncertainties (if available)
     - Combine the time intervals (min start, max end)
     - Recalculate duration and quantity
     
@@ -356,6 +423,17 @@ def merge_events(event1: Dict, event2: Dict) -> Dict:
     
     # Average the rates
     avg_rate = (rate1 + rate2) / 2
+    
+    # Get uncertainties and average if both available
+    uncertainties1 = event1.get('uncertainties')
+    uncertainties2 = event2.get('uncertainties')
+    avg_uncertainties = None
+    if uncertainties1 is not None and uncertainties2 is not None:
+        avg_uncertainties = (uncertainties1 + uncertainties2) / 2
+    elif uncertainties1 is not None:
+        avg_uncertainties = uncertainties1
+    elif uncertainties2 is not None:
+        avg_uncertainties = uncertainties2
     
     # Get time intervals
     start1 = pd.to_datetime(event1.get('startTime'))
@@ -408,6 +486,11 @@ def merge_events(event1: Dict, event2: Dict) -> Dict:
             seen.add(oid)
             unique_original_ids.append(oid)
     
+    # Determine operational status: merged event is operational if at least one event is operational
+    is_operational1 = event1.get('is_operational', False)
+    is_operational2 = event2.get('is_operational', False)
+    merged_is_operational = is_operational1 or is_operational2
+    
     # Generate UUID for merged event
     merged_event_id = str(uuid.uuid4())
     
@@ -415,6 +498,7 @@ def merge_events(event1: Dict, event2: Dict) -> Dict:
     merged_event = {
         'id': merged_event_id,
         'eventType': event1.get('eventType', 'Emission Event'),
+        'is_operational': merged_is_operational,  # True if at least one merged event has observation_type == "operation" (RE)
         'quantity': {
             'value': quantity,
             'unit': 'kg'
@@ -432,6 +516,7 @@ def merge_events(event1: Dict, event2: Dict) -> Dict:
         } if merged_cause else None,
         'source': event1.get('source', {}),
         'rate': avg_rate,
+        'uncertainties': avg_uncertainties,
         'source_scale': event1.get('source_scale', ''),
         'source_name': event1.get('source_name', ''),
         'startTime': merged_start.isoformat() if hasattr(merged_start, 'isoformat') else merged_start,
@@ -502,6 +587,7 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
     events = []
     
     rate_col = column_mapping.get('rate')
+    uncertainties_col = column_mapping.get('uncertainties')
     id_col = column_mapping.get('id')
     source_col = column_mapping.get('source')
     # source_scale is now a direct enum value ('site', 'equipment', 'component'), not a column name
@@ -509,6 +595,7 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
     cause_col = column_mapping.get('cause')
     start_time_col = column_mapping.get('start_time')
     end_time_col = column_mapping.get('end_time')
+    observation_type_col = column_mapping.get('observation_type')  # Optional: column indicating observation type (used to determine operational status)
     
     # Ensure time column is datetime
     if time_col not in data.columns:
@@ -530,6 +617,15 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
             detection_rate = pd.to_numeric(row[rate_col], errors='coerce')
             if pd.isna(detection_rate):
                 continue
+            
+            # Get uncertainties if available
+            detection_uncertainties = None
+            if uncertainties_col and uncertainties_col in source_data.columns:
+                uncertainties_val = row.get(uncertainties_col)
+                if pd.notna(uncertainties_val):
+                    detection_uncertainties = pd.to_numeric(uncertainties_val, errors='coerce')
+                    if pd.isna(detection_uncertainties):
+                        detection_uncertainties = None
             
             # Check if start_time and end_time columns are provided
             if start_time_col and start_time_col in data.columns and end_time_col and end_time_col in data.columns:
@@ -572,6 +668,18 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
                 if cause_value == 'nan' or cause_value == '':
                     cause_value = None
             
+            # Get observation_type from original data to determine operational status
+            # Resolved events (RE): observation_type == "operation"
+            # Partially resolved events (PRE): observation_type != "operation"
+            is_operational = False  # Track if this is an operational event
+            if observation_type_col and observation_type_col in source_data.columns:
+                observation_type_value = str(row.get(observation_type_col, '')).strip().lower()
+                # Check if observation_type equals "operation" (case-insensitive)
+                if observation_type_value == 'operation':
+                    is_operational = True
+                else:
+                    is_operational = False
+            
             # Calculate quantity
             quantity = detection_rate * duration if duration > 0 else detection_rate
             
@@ -580,6 +688,7 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
                 'id': event_id,
                 'original_data_id': original_data_id,  # Store original data ID separately
                 'eventType': 'Emission Event',
+                'is_operational': is_operational,  # Track operational status (True if observation_type == "operation")
                 'quantity': {
                     'value': quantity,
                     'unit': 'kg'
@@ -601,6 +710,7 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
                     'physicalSource': source_name
                 },
                 'rate': detection_rate,
+                'uncertainties': detection_uncertainties,
                 'source_scale': source_scale,
                 'source_name': source_name,
                 'startTime': start_time.isoformat() if start_time else None,
@@ -613,8 +723,8 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
 
 def merge_events_by_allen_algebra(events: List[Dict]) -> List[Dict]:
     """
-    Merge events using Allen's interval algebra.
-    Events from the same source that have mergeable temporal relations are merged.
+    Merge overlapping events from the same source using Allen's interval algebra.
+    Events from the same source that overlap or are adjacent in time are merged.
     
     Args:
         events: List of event dictionaries
@@ -628,7 +738,10 @@ def merge_events_by_allen_algebra(events: List[Dict]) -> List[Dict]:
     # Group events by source
     events_by_source = {}
     for event in events:
-        source = event.get('source', {}).get('physicalSource', 'Unknown')
+        # Use physicalSource or sourceLocation as the key
+        source = event.get('source', {}).get('physicalSource', '')
+        if not source:
+            source = event.get('source', {}).get('sourceLocation', 'Unknown')
         if source not in events_by_source:
             events_by_source[source] = []
         events_by_source[source].append(event)
@@ -641,28 +754,26 @@ def merge_events_by_allen_algebra(events: List[Dict]) -> List[Dict]:
         source_events_sorted = sorted(source_events, 
                                      key=lambda x: pd.to_datetime(x.get('startTime', datetime.min)))
         
-        # Try to merge events
-        i = 0
-        while i < len(source_events_sorted):
-            current_event = source_events_sorted[i]
+        if len(source_events_sorted) == 0:
+            continue
+        
+        # Use a more efficient merging algorithm
+        # Process events in order and merge overlapping ones
+        result = [source_events_sorted[0]]
+        
+        for next_event in source_events_sorted[1:]:
+            # Check if the last merged event overlaps with the next event
+            last_event = result[-1]
             
-            # Check if current event can be merged with any subsequent events
-            j = i + 1
-            while j < len(source_events_sorted):
-                next_event = source_events_sorted[j]
-                
-                if can_merge_events(current_event, next_event):
-                    # Merge events
-                    current_event = merge_events(current_event, next_event)
-                    # Remove merged event
-                    source_events_sorted.pop(j)
-                    # Continue checking if merged event can merge with more events
-                    j = i + 1
-                else:
-                    j += 1
-            
-            merged_events.append(current_event)
-            i += 1
+            if can_merge_events(last_event, next_event):
+                # Merge with the last event in result
+                merged = merge_events(last_event, next_event)
+                result[-1] = merged
+            else:
+                # No overlap, add as new event
+                result.append(next_event)
+        
+        merged_events.extend(result)
     
     return merged_events
 
@@ -687,7 +798,7 @@ def validate_column_mapping(data: pd.DataFrame, column_mapping: Dict[str, str]) 
         'warnings': []
     }
     
-    mandatory_fields = ['rate', 'id', 'source_scale', 'source']
+    mandatory_fields = ['rate', 'id', 'source']
     
     # Check mandatory fields
     for field in mandatory_fields:
@@ -706,22 +817,20 @@ def validate_column_mapping(data: pd.DataFrame, column_mapping: Dict[str, str]) 
             result['errors'].append(f"Rate column '{rate_col}' must be numeric")
             result['valid'] = False
     
+    # Check uncertainties column (optional)
+    uncertainties_col = column_mapping.get('uncertainties')
+    if uncertainties_col and uncertainties_col in data.columns:
+        if not pd.api.types.is_numeric_dtype(data[uncertainties_col]):
+            result['errors'].append(f"Uncertainties column '{uncertainties_col}' must be numeric")
+            result['valid'] = False
+    
     id_col = column_mapping.get('id')
     if id_col and id_col in data.columns:
         if data[id_col].duplicated().any():
             result['warnings'].append(f"ID column '{id_col}' contains duplicate values")
     
-    # source_scale is now an enum value, not a column - validate it's one of the allowed values
-    source_scale_value = column_mapping.get('source_scale')
-    if source_scale_value:
-        valid_scales = ['site', 'equipment', 'component']
-        if str(source_scale_value).lower() not in valid_scales:
-            result['errors'].append(
-                f"Source scale must be one of: {', '.join(valid_scales)}. Got: {source_scale_value}"
-            )
-            result['valid'] = False
-    else:
-        result['errors'].append("Source scale is required")
+    # source_scale removed from UI - defaults to 'site' if not provided
+    # No validation needed as it will default to 'site' in converter
         result['valid'] = False
     
     return result

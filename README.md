@@ -76,11 +76,6 @@ cd EAEET_v1
 pip install -r requirements.txt
 ```
 
-**Note**: For wind data functionality, you may need to install `netCDF4` separately:
-```bash
-pip install netCDF4
-```
-
 ### Required Packages
 
 - `dash>=2.14.0` - Web framework
@@ -88,7 +83,7 @@ pip install netCDF4
 - `numpy>=1.23.0` - Numerical computing
 - `scipy>=1.9.0` - Scientific computing
 - `plotly>=5.14.0` - Interactive visualizations
-- `netCDF4` (optional) - For wind data support
+- `netCDF4>=1.6.0` - For wind data support (NetCDF file reading)
 
 ## Usage
 
@@ -250,7 +245,7 @@ For wind-aware simulations:
 Estimates emissions that occur below the minimum detection limit of measurement technologies.
 
 **Required Parameters:**
-- Measurement technology (InsightM, Qube, SeekOps, Bridger Photonic, PoMELO, or custom MDL)
+- Measurement technology (InsightM, Qube, SeekOps, Bridger Photonic, or custom MDL)
 - Component-level leak data (default or user-uploaded)
 - Optional: Wind speed data
 
@@ -309,5 +304,5 @@ This software is provided exclusively for academic research and educational purp
 
 ---
 
-**Note**: Make sure you have all required dependencies installed before running the application. For wind data functionality, ensure `netCDF4` is installed if you plan to use default weather data.
+**Note**: Make sure you have all required dependencies installed before running the application. All dependencies, including `netCDF4` for wind data functionality, are included in `requirements.txt`.
 

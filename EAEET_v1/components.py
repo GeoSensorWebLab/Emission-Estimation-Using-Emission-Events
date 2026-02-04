@@ -253,8 +253,15 @@ def get_data_investigation_content():
                           style=get_button_style('#3498db')),
             ], style={'marginBottom': '15px'}),
             dcc.Download(id="download-dataframe"),
-            html.Div(id='converted-events-table', style={'marginTop': '10px'}),
-            html.Div(id='conversion-status', style={'marginTop': '15px'}),
+            dcc.Loading(
+                id="loading-conversion",
+                type="default",
+                children=html.Div([
+                    html.Div(id='converted-events-table', style={'marginTop': '10px'}),
+                    html.Div(id='conversion-status', style={'marginTop': '15px'}),
+                ]),
+                style={'minHeight': '200px'}
+            ),
         ], style=get_section_container_style()),
         
         # Sankey chart visualization
@@ -262,7 +269,12 @@ def get_data_investigation_content():
             html.H3("3. Data Flow Visualization", style=get_h3_style()),
             html.P("Sankey chart showing the relationship between loaded emissions observations and converted emission events (only first 10 events are shown)", 
                   style={'marginBottom': '15px', 'color': '#7f8c8d'}),
-            html.Div(id='sankey-chart-container', style={'marginTop': '10px'}),
+            dcc.Loading(
+                id="loading-sankey",
+                type="default",
+                children=html.Div(id='sankey-chart-container', style={'marginTop': '10px'}),
+                style={'minHeight': '400px'}
+            ),
         ], style=get_section_container_style()),
     ])
 
@@ -399,10 +411,12 @@ def get_simulation_selection_content():
             ], style={'marginBottom': '20px'}),
             
             
-            # Measurement Technology (with "define technology" option)
+            # Measurement Technology (with "define technology" option) - Multiple selection supported
             html.Div([
-                html.Label("Measurement Technology:", 
+                html.Label("Measurement Technology (Select one or more):", 
                           style={'fontWeight': 'bold', 'marginRight': '10px', 'marginBottom': '10px'}),
+                html.P("You can select multiple technologies to simulate a scenario where multiple detection technologies are deployed. An emission is detected if ANY technology detects it.",
+                      style={'fontSize': '12px', 'color': '#7f8c8d', 'fontStyle': 'italic', 'marginBottom': '5px'}),
                 dcc.Dropdown(
                     id='measurement-technology-dropdown',
                     options=[
@@ -410,10 +424,16 @@ def get_simulation_selection_content():
                         {'label': 'Qube', 'value': 'Qube'},
                         {'label': 'SeekOps', 'value': 'SeekOps'},
                         {'label': 'Bridger Photonic', 'value': 'Bridger Photonic'},
-                        {'label': 'PoMELO', 'value': 'PoMELO'},
+                        {'label': 'GHGSat-Air', 'value': 'GHGSat-Air'},
+                        {'label': 'Kuva Systems', 'value': 'Kuva Systems'},
+                        {'label': 'Sensirion', 'value': 'Sensirion'},
+                        {'label': 'Aeromon', 'value': 'Aeromon'},
+                        {'label': 'Project Canary', 'value': 'Project Canary'},
+                        {'label': 'Long Path', 'value': 'Long Path'},
                         {'label': 'Define Technology', 'value': 'define_technology'}
                     ],
-                    value='InsightM',
+                    value=['InsightM'],  # Default to list with single value
+                    multi=True,  # Enable multiple selection
                     style={'width': '400px', 'marginBottom': '20px'}
                 ),
             ], id='measurement-technology-container'),
@@ -862,6 +882,34 @@ def create_app_layout():
         dcc.Store(id='stored-leak-csv', storage_type='memory'),  # Stores uploaded CSV DataFrame for column selection
         dcc.Store(id='stored-wind-data', storage_type='memory'),  # Stores wind speed data
         dcc.Store(id='stored-wind-csv', storage_type='memory'),  # Stores uploaded CSV DataFrame for wind data column selection
+        dcc.Store(id='stored-fitted-distributions', storage_type='memory'),  # Stores fitted distributions for rate and duration
+        
+        # Hidden elements for callback validation (buttons, graphs, and inputs that appear in dynamically loaded sections)
+        # These ensure Dash can validate callbacks at startup even if elements aren't in initial visible layout
+        html.Div([
+            # From Emissions Event Browser section
+            html.Button('Fit Distribution', id='fit-button', n_clicks=0, style={'display': 'none'}),
+            dcc.Graph(id='rate-histogram', style={'display': 'none'}),
+            dcc.Graph(id='duration-histogram', style={'display': 'none'}),
+            dcc.Dropdown(id='distribution-dropdown', style={'display': 'none'}),
+            dcc.Dropdown(id='emission-characteristics-dropdown', style={'display': 'none'}),
+            dcc.Input(id='producing-hours-input', type='number', style={'display': 'none'}),
+            html.Button('Confirm', id='confirm-producing-hours-button', n_clicks=0, style={'display': 'none'}),
+            html.Div(id='producing-hours-status', style={'display': 'none'}),
+            dcc.Dropdown(id='consider-duration-uncertainty-dropdown', style={'display': 'none'}),
+            dcc.Dropdown(id='uncertainty-source-dropdown', style={'display': 'none'}),
+            dcc.Dropdown(id='duration-uncertainty-method-dropdown', style={'display': 'none'}),
+            dcc.Input(id='manual-leak-production-rate-input', type='number', style={'display': 'none'}),
+            html.Button('Estimate Duration', id='estimate-duration-button', n_clicks=0, style={'display': 'none'}),
+            html.Div(id='duration-estimation-status', style={'display': 'none'}),
+            html.Div(id='uncertainty-chart-container', style={'display': 'none'}),
+            html.Div(id='uncertainty-events-table-container', style={'display': 'none'}),
+            # From Simulations section
+            html.Button('Run Simulation', id='simulate-button', n_clicks=0, style={'display': 'none'}),
+            dcc.Graph(id='leak-data-histogram', style={'display': 'none'}),
+            html.Div(id='wind-data-status', style={'display': 'none'}),
+            html.Div(id='simulation-status', style={'display': 'none'}),
+        ], style={'display': 'none'}),
         
         # Top navigation bar
         create_top_navigation(),
@@ -880,16 +928,18 @@ def create_mapping_modal():
     # (Source Scale will be handled separately as enum)
     mandatory_fields = [
         {'id': 'id', 'label': 'ID (Unique Identifier)', 'required': True, 'description': 'Unique ID for each emission measurement'},
-        {'id': 'rate', 'label': 'Rate (kg/hr)', 'required': True, 'description': 'Quantified emission rate in kg/hr'},
+        {'id': 'rate', 'label': 'Rate (Emission Quantity)', 'required': True, 'description': 'Quantified Emissions in kg/hr'},
         {'id': 'time', 'label': 'Detection/Measurement time', 'required': True, 'description': 'Time that emissions were detected or measured'},
-        {'id': 'source', 'label': 'Source (Unique Name)', 'required': True, 'description': 'Name of detected or measured source'}
+        {'id': 'source', 'label': 'Source Feature', 'required': True, 'description': 'Feature of detected or measured source'}
     ]
     
-    # Optional fields: Cause, Start Time, and End Time
+    # Optional fields: Cause, Start Time, End Time, Uncertainties, and Observation Type
     optional_fields = [
-        {'id': 'cause', 'label': 'Cause', 'required': False, 'description': 'Root cause or machanism of the emission if known'},
-        {'id': 'start_time', 'label': 'Start Time', 'required': False, 'description': 'Start time of the emission if known'},
-        {'id': 'end_time', 'label': 'End Time', 'required': False, 'description': 'End time of the emission known'}
+        {'id': 'cause', 'label': 'Machanism', 'required': False, 'description': 'Root cause or machanism of the emission if known'},
+        {'id': 'start_time', 'label': 'Start Time (Temporal Bound)', 'required': False, 'description': 'Start time of the emission if known'},
+        {'id': 'end_time', 'label': 'End Time (Temporal Bound)', 'required': False, 'description': 'End time of the emission known'},
+        {'id': 'uncertainties', 'label': 'Uncertainties', 'required': False, 'description': 'Uncertainty values for emission measurements'},
+        {'id': 'observation_type', 'label': 'Observation Type', 'required': False, 'description': 'Type of observation (e.g., "operation" for operational events)'}
     ]
     
     mapping_rows = []
@@ -912,29 +962,6 @@ def create_mapping_modal():
                 )
             ], style={'marginBottom': '20px', 'display': 'flex', 'alignItems': 'center'})
         )
-    
-    # Source Scale - Special handling as enum dropdown (not a column selector)
-    # Positioned after Source
-    mapping_rows.append(
-        html.Div([
-            html.Label([
-                'Source Scale',
-                html.Span(' *', style={'color': 'red'}),
-                html.Span(' (Select scale type: site, equipment, or component)', 
-                         style={'fontSize': '12px', 'color': '#7f8c8d', 'fontWeight': 'normal', 'marginLeft': '5px'})
-            ], style={'fontWeight': 'bold', 'width': '250px', 'display': 'inline-block'}),
-            dcc.Dropdown(
-                id='map-source_scale',
-                options=[
-                    {'label': 'Site', 'value': 'site'},
-                    {'label': 'Equipment', 'value': 'equipment'},
-                    {'label': 'Component', 'value': 'component'}
-                ],
-                value='site',
-                style={'width': '350px', 'display': 'inline-block', 'marginLeft': '20px'}
-            )
-        ], style={'marginBottom': '20px', 'display': 'flex', 'alignItems': 'center'})
-    )
     
     # Optional fields: Cause, Start Time, and End Time
     for field in optional_fields:
@@ -976,13 +1003,18 @@ def create_mapping_modal():
                        })
         ], style={'position': 'relative', 'marginBottom': '20px'}),
         
-        # Modal body
-        html.Div([
-            html.P("Select which columns from your data correspond to each required field:", 
-                  style={'marginBottom': '20px', 'color': '#7f8c8d'}),
-            html.Div(mapping_rows, id='mapping-fields-container'),
-            html.Div(id='modal-mapping-status', style={'marginTop': '15px', 'marginBottom': '15px'}),
-        ]),
+        # Modal body with loading indicator
+        dcc.Loading(
+            id="loading-mapping",
+            type="default",
+            children=html.Div([
+                html.P("Select which columns from your data correspond to each required field:", 
+                      style={'marginBottom': '20px', 'color': '#7f8c8d'}),
+                html.Div(mapping_rows, id='mapping-fields-container'),
+                html.Div(id='modal-mapping-status', style={'marginTop': '15px', 'marginBottom': '15px'}),
+            ]),
+            style={'minHeight': '200px'}
+        ),
         
         # Modal footer
         html.Div([
