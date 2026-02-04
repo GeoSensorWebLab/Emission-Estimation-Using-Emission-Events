@@ -96,7 +96,7 @@ def fitting_distribution(data, distribution_type="lognormal"):
     elif distribution_type == "gamma":
         return gamma.fit(data, floc=0)
 
-def probability_of_detection(technology, wind_speed=None, wind_consider=False, standard=True, mdl_define=None):
+def probability_of_detection(technology, wind_speed=None, wind_consider=False, mdl_define=None):
     """
     Get Probability of Detection (POD) and Minimum Detection Limit (MDL) for a given technology.
     
@@ -104,7 +104,6 @@ def probability_of_detection(technology, wind_speed=None, wind_consider=False, s
         technology: Technology name (e.g., "InsightM", "Qube", "SeekOps", etc.)
         wind_speed: Wind speed value (required when wind_consider=True)
         wind_consider: Whether to consider wind effects (default: False)
-        standard: Whether to use standard MDL values (default: True)
         mdl_define: User-defined MDL value for "User Defined" technology
     
     Returns:
@@ -140,10 +139,7 @@ def probability_of_detection(technology, wind_speed=None, wind_consider=False, s
             MDL = _mdl_with_wind
         else:
             POD = 0.9
-            if standard:
-                MDL = 25
-            else:
-                MDL = 10
+            MDL = 10
                 
     elif technology == "Qube":
         if wind_consider:
@@ -167,14 +163,7 @@ def probability_of_detection(technology, wind_speed=None, wind_consider=False, s
             MDL = _mdl_with_wind
         else:
             POD = 0.9
-            if standard:
-                MDL = 3
-            else:
-                MDL = 0.5
-                
-    elif technology == "PoMELO":
-        POD = 0.9
-        MDL = 3.6
+            MDL = 0.5
         
     elif technology == "GHGSat-Air":
         POD = 0.9
