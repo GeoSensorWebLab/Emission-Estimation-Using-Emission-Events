@@ -2061,41 +2061,46 @@ def run_simulation_callback(
     if monte_carlo_iterations is None:
         monte_carlo_iterations = 10
 
-    # Handle multiple technologies selection
+    # Handle multiple technologies selection (only needed for below_MDL)
     # Convert to list if single value (for backward compatibility)
-    if measurement_technology is None:
-        return (
-            None,
-            html.Div(
-                [
-                    html.P(
-                        "Please select at least one measurement technology",
-                        style={"color": "#e74c3c", "fontWeight": "bold"},
-                    )
-                ]
-            ),
-            results_button_clicks or 0,
-        )
+    if estimation_approach == "below_MDL":
+        # Only validate measurement technology for below_MDL approach
+        if measurement_technology is None:
+            return (
+                None,
+                html.Div(
+                    [
+                        html.P(
+                            "Please select at least one measurement technology",
+                            style={"color": "#e74c3c", "fontWeight": "bold"},
+                        )
+                    ]
+                ),
+                results_button_clicks or 0,
+            )
 
-    if not isinstance(measurement_technology, list):
-        technologies_list = [measurement_technology]
+        if not isinstance(measurement_technology, list):
+            technologies_list = [measurement_technology]
+        else:
+            technologies_list = measurement_technology
+
+        # Validate that at least one technology is selected
+        if len(technologies_list) == 0:
+            return (
+                None,
+                html.Div(
+                    [
+                        html.P(
+                            "Please select at least one measurement technology",
+                            style={"color": "#e74c3c", "fontWeight": "bold"},
+                        )
+                    ]
+                ),
+                results_button_clicks or 0,
+            )
     else:
-        technologies_list = measurement_technology
-
-    # Validate that at least one technology is selected
-    if len(technologies_list) == 0:
-        return (
-            None,
-            html.Div(
-                [
-                    html.P(
-                        "Please select at least one measurement technology",
-                        style={"color": "#e74c3c", "fontWeight": "bold"},
-                    )
-                ]
-            ),
-            results_button_clicks or 0,
-        )
+        # For bootstrap approach, measurement technology is not needed
+        technologies_list = []
 
 
     # Determine if using minimum detection limit or measurement technology
@@ -2485,8 +2490,20 @@ def run_simulation_callback(
                 fitted_distributions_store if fitted_distributions_store else None
             )
 
+            # Calculate probability of emission event based on actual data
+            # poe = (total hours with events) / (total simulation hours)
+            total_sim_hours = (end_datetime - start_datetime).total_seconds() / 3600
+            total_event_hours = sum(durations) if not is_continuous else 0
+            
+            # Calculate probability with bounds (min 0.001, max 0.999 to avoid edge cases)
+            if total_sim_hours > 0 and not is_continuous:
+                poe = min(max(total_event_hours / total_sim_hours, 0.001), 0.999)
+            else:
+                # For continuous emissions or if calculation fails, use moderate default
+                poe = 0.1
+            
             # Prepare distributions
-            prob_dist = {"UNKNOWN": 0.5}
+            prob_dist = {"UNKNOWN": poe}
             rate_dist = {"UNKNOWN": rates}
             duration_dist = (
                 {"UNKNOWN": durations} if not is_continuous else {"UNKNOWN": []}
