@@ -2,7 +2,6 @@
 
 A comprehensive web-based toolkit for estimating emissions using emission events. This application provides an interactive interface for converting emission observations to emission events, running Monte Carlo simulations, and analyzing emission data with uncertainty quantification.
 
-![Sankey Chart](case%20study/Sankey%20Chart.png)
 
 ## Overview
 
