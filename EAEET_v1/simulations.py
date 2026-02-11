@@ -215,6 +215,10 @@ def extrapolation(prob_dist, rate_dist, duration_dist, start_time, end_time, MC,
                     remaining_hours = total_hours - sim_hours
                     if random_duration > remaining_hours:
                         random_duration = remaining_hours
+                    
+                    # Safety check: ensure duration is positive to avoid infinite loop
+                    if random_duration <= 0:
+                        random_duration = 1  # Minimum 1 hour to ensure progress
 
                     extrapolated_emissions.append(random_duration * random_rate)
                     sim_hours += random_duration
@@ -410,6 +414,10 @@ def _extrapolation_single_iteration(args):
             remaining_hours = total_hours - sim_hours
             if random_duration > remaining_hours:
                 random_duration = remaining_hours
+            
+            # Safety check: ensure duration is positive to avoid infinite loop
+            if random_duration <= 0:
+                random_duration = 1  # Minimum 1 hour to ensure progress
 
             extrapolated_emissions.append(random_duration * random_rate)
             sim_hours += random_duration

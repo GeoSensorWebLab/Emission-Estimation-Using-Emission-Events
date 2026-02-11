@@ -381,6 +381,8 @@ def get_simulation_selection_content():
                           style={'fontWeight': 'bold', 'marginRight': '10px', 'marginBottom': '10px'}),
                 dcc.DatePickerSingle(
                     id='simulation-start-date-picker',
+                    date='2025-01-01',  # Default start date
+                    display_format='YYYY-MM-DD',
                     style={'marginBottom': '20px'}
                 ),
             ], style={'marginBottom': '20px'}),
@@ -390,6 +392,8 @@ def get_simulation_selection_content():
                           style={'fontWeight': 'bold', 'marginRight': '10px', 'marginBottom': '10px'}),
                 dcc.DatePickerSingle(
                     id='simulation-end-date-picker',
+                    date='2025-12-31',  # Default end date
+                    display_format='YYYY-MM-DD',
                     style={'marginBottom': '20px'}
                 ),
             ], style={'marginBottom': '20px'}),
