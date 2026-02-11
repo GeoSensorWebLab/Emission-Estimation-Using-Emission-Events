@@ -831,7 +831,6 @@ def validate_column_mapping(data: pd.DataFrame, column_mapping: Dict[str, str]) 
     
     # source_scale removed from UI - defaults to 'site' if not provided
     # No validation needed as it will default to 'site' in converter
-        result['valid'] = False
     
     return result
 
