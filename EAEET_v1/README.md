@@ -29,7 +29,7 @@ cd EAEET_v1
 
 2. Run the application:
 ```bash
-python app.py
+python EAEET_dash_app.py
 ```
 
 3. Open your web browser and navigate to:
