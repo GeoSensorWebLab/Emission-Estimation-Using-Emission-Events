@@ -600,6 +600,8 @@ def get_results_content():
     ])
 
 
+
+
 def get_event_uncertainty_calculator_content():
     """Content for Emissions Event Browser section"""
     return html.Div([
