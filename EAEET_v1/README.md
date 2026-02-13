@@ -1,4 +1,4 @@
-# Emission Event Analysis Tool (EAEET) v1
+# Event-based Annualized Emissions Estimation Toolkit (EAEET) v1
 
 A Dash-based web application for analyzing emission events and estimating total emissions using advanced simulation techniques.
 
