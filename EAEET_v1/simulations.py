@@ -289,8 +289,8 @@ def _simulate_below_mdl_single_iteration(args):
     
     Supports multiple technologies: an emission is detected if ANY technology detects it.
     """
-    (total_simulated_time_steps, durations_dist, leaks_dist, num_comps, 
-     pod_config_or_list, wind_speed) = args
+    (total_simulated_time_steps, durations_dist, leaks_dist, num_comps,
+     pod_config_or_list, wind_speed, seed) = args
     
     # Handle both PODs_list (for sequential) and technologies_config (for parallel)
     if isinstance(pod_config_or_list, list) and len(pod_config_or_list) > 0:
@@ -312,7 +312,7 @@ def _simulate_below_mdl_single_iteration(args):
         PODs_list = []
     
     # Set random seed for reproducibility in parallel execution
-    np.random.seed(40)
+    np.random.seed(seed)
     
     E_miss = 0 
     current_hour = 0
@@ -692,7 +692,7 @@ def _run_monte_carlo_simulation(
             total_simulated_time_steps = total_hours
         args_list = [
             (total_simulated_time_steps, durations,
-             _leaks_dist, _num_comps, technologies_config, wind_speed)
+             _leaks_dist, _num_comps, technologies_config, wind_speed, int(seed))
             for seed in seeds
         ]
         
@@ -713,7 +713,7 @@ def _run_monte_carlo_simulation(
         for seed in seeds:
             # For sequential, pass PODs_list directly (no pickling needed)
             args = (total_simulated_time_steps, durations,
-                   _leaks_dist, _num_comps, PODs_list, wind_speed)
+                   _leaks_dist, _num_comps, PODs_list, wind_speed, int(seed))
             unmeasured_emissions.append(_simulate_below_mdl_single_iteration(args))
     
     return unmeasured_emissions

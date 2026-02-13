@@ -35,12 +35,14 @@ from components import (
     get_inactive_button_style,
     get_button_style,
     get_disabled_button_style,
+    get_summary_card_style,
+    get_section_container_style,
 )
 
 
 # Initialize Dash app
 app = dash.Dash(__name__, suppress_callback_exceptions=True)
-app.title = "Emission Event Data Analysis"
+app.title = "EAEET V1.0"
 
 
 # Backend functions
@@ -143,8 +145,14 @@ app.layout = create_app_layout()
 
 def parse_contents(contents, filename):
     """Parse uploaded CSV file"""
-    content_type, content_string = contents.split(",")
-    decoded = base64.b64decode(content_string)
+    try:
+        content_type, content_string = contents.split(",", 1)
+    except (ValueError, AttributeError):
+        return None, "Error: Invalid file upload format"
+    try:
+        decoded = base64.b64decode(content_string)
+    except Exception:
+        return None, "Error: Could not decode file contents"
     try:
         if "csv" in filename:
             df = pd.read_csv(io.StringIO(decoded.decode("utf-8")))
@@ -2539,7 +2547,7 @@ def run_simulation_callback(
                 "start_time": start_datetime,
                 "end_time": end_datetime,
                 "monte_carlo_iterations": monte_carlo_iterations,
-                "measurement_technology": tech_value,
+                "measurement_technology": technologies_list,  # Store as list for consistency
                 "minimum_detection_limit": mdl_value,
                 "consider_wind": consider_wind,
                 "estimated_duration": estimated_duration,
@@ -2664,370 +2672,345 @@ def run_simulation_callback(
     )
 
 
-def _format_simulation_results_display(simulation_result):
-    """
-    Helper function to format simulation results for display.
+def _build_summary_cards(simulation_result):
+    """Build KPI summary cards row for the results dashboard."""
+    estimation_approach = simulation_result.get("estimation_approach")
+    cards = []
 
-    Args:
-        simulation_result: Dictionary containing simulation results
+    if estimation_approach == "bootstrap":
+        extrapolation_results = simulation_result.get("extrapolation_results", {})
+        all_emissions = []
+        for key, emissions_list in extrapolation_results.items():
+            if len(emissions_list) > 0:
+                all_emissions.extend(emissions_list)
 
-    Returns:
-        HTML Div with formatted results
-    """
-    if simulation_result is None:
-        return html.Div(
-            [
-                html.P(
-                    "No simulation results available. Please run a simulation first.",
-                    style={"color": "#7f8c8d", "fontStyle": "italic"},
-                )
+        if len(all_emissions) > 0:
+            arr = np.array(all_emissions)
+            median_val = np.median(arr)
+            lower_ci = np.percentile(arr, 2.5)
+            upper_ci = np.percentile(arr, 97.5)
+            std_val = np.std(arr)
+            n_iter = simulation_result.get("monte_carlo_iterations", "N/A")
+
+            cards = [
+                html.Div([
+                    html.P("Median Emissions", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                    html.P(f"{median_val:,.2f} kg", style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+                ], style=get_summary_card_style("#e67e22")),
+                html.Div([
+                    html.P("95% Confidence Interval", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                    html.P(f"[{lower_ci:,.2f}, {upper_ci:,.2f}] kg", style={"fontSize": "18px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+                ], style=get_summary_card_style("#3498db")),
+                html.Div([
+                    html.P("Std Deviation", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                    html.P(f"{std_val:,.2f} kg", style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+                ], style=get_summary_card_style("#95a5a6")),
+                html.Div([
+                    html.P("MC Iterations", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                    html.P(f"{n_iter}", style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+                ], style=get_summary_card_style("#9b59b6")),
             ]
+
+    elif estimation_approach == "below_MDL":
+        total_emissions = simulation_result.get("below_mdl_emissions")
+        total_lower = simulation_result.get("below_mdl_emissions_lower")
+        total_upper = simulation_result.get("below_mdl_emissions_upper")
+        measured = simulation_result.get("measured_emissions")
+        unmeasured = simulation_result.get("unmeasured_emissions")
+        n_iter = simulation_result.get("monte_carlo_iterations", "N/A")
+
+        ci_text = "N/A"
+        if total_lower is not None and total_upper is not None:
+            ci_text = f"[{total_lower:,.2f}, {total_upper:,.2f}] kg"
+
+        cards = [
+            html.Div([
+                html.P("Total Emissions", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                html.P(f"{total_emissions:,.2f} kg" if total_emissions is not None else "N/A",
+                       style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+                html.P(ci_text, style={"fontSize": "12px", "color": "#7f8c8d", "margin": "0"}),
+            ], style=get_summary_card_style("#e67e22")),
+            html.Div([
+                html.P("Measured Emissions", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                html.P(f"{measured:,.2f} kg" if measured is not None else "N/A",
+                       style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+            ], style=get_summary_card_style("#27ae60")),
+            html.Div([
+                html.P("Unmeasured Emissions", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                html.P(f"{unmeasured:,.2f} kg" if unmeasured is not None else "N/A",
+                       style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+            ], style=get_summary_card_style("#e74c3c")),
+            html.Div([
+                html.P("MC Iterations", style={"color": "#7f8c8d", "fontSize": "13px", "marginBottom": "5px"}),
+                html.P(f"{n_iter}", style={"fontSize": "24px", "fontWeight": "bold", "color": "#2c3e50", "margin": "0"}),
+            ], style=get_summary_card_style("#9b59b6")),
+        ]
+
+    if not cards:
+        return html.Div()
+
+    return html.Div(cards, style={
+        "display": "flex", "gap": "15px", "flexWrap": "wrap", "marginBottom": "25px",
+    })
+
+
+def _build_charts(simulation_result):
+    """Build distribution analysis charts."""
+    estimation_approach = simulation_result.get("estimation_approach")
+
+    if estimation_approach == "bootstrap":
+        extrapolation_results = simulation_result.get("extrapolation_results", {})
+        all_emissions = []
+        for key, emissions_list in extrapolation_results.items():
+            if len(emissions_list) > 0:
+                all_emissions.extend(emissions_list)
+
+        if len(all_emissions) == 0:
+            return html.P("No bootstrap data available.", style={"color": "#7f8c8d", "fontStyle": "italic"})
+
+        arr = np.array(all_emissions)
+        mean_val = np.mean(arr)
+        median_val = np.median(arr)
+        p2_5 = np.percentile(arr, 2.5)
+        p97_5 = np.percentile(arr, 97.5)
+
+        fig = go.Figure()
+        fig.add_trace(go.Histogram(
+            x=all_emissions, nbinsx=40,
+            name="Emission Distribution", marker_color="#3498db", opacity=0.7,
+        ))
+        fig.add_vline(x=mean_val, line_dash="dash", line_color="red",
+                      annotation_text=f"Mean: {mean_val:,.2f}", annotation_position="top right")
+        fig.add_vline(x=median_val, line_dash="solid", line_color="orange",
+                      annotation_text=f"Median: {median_val:,.2f}", annotation_position="top left")
+        fig.add_vline(x=p2_5, line_dash="dot", line_color="green",
+                      annotation_text=f"P2.5: {p2_5:,.2f}", annotation_position="bottom right")
+        fig.add_vline(x=p97_5, line_dash="dot", line_color="green",
+                      annotation_text=f"P97.5: {p97_5:,.2f}", annotation_position="bottom left")
+        fig.update_layout(
+            title="Distribution of Extrapolated Emissions",
+            xaxis_title="Total Emissions (kg)", yaxis_title="Frequency",
+            height=450, showlegend=False,
+            margin=dict(l=50, r=50, t=60, b=50),
+        )
+        return html.Div([dcc.Graph(figure=fig)])
+
+    elif estimation_approach == "below_MDL":
+        measured = simulation_result.get("measured_emissions")
+        unmeasured = simulation_result.get("unmeasured_emissions")
+        total = simulation_result.get("below_mdl_emissions")
+        if measured is None or unmeasured is None:
+            return html.P("No below-MDL data available.", style={"color": "#7f8c8d", "fontStyle": "italic"})
+
+        # Horizontal stacked bar
+        bar_fig = go.Figure()
+        bar_fig.add_trace(go.Bar(
+            y=["Emissions"], x=[measured], name="Measured", orientation="h",
+            marker_color="#27ae60", text=[f"{measured:,.2f} kg"], textposition="inside",
+        ))
+        bar_fig.add_trace(go.Bar(
+            y=["Emissions"], x=[unmeasured], name="Unmeasured", orientation="h",
+            marker_color="#e74c3c", text=[f"{unmeasured:,.2f} kg"], textposition="inside",
+        ))
+        bar_fig.update_layout(
+            barmode="stack", title="Measured vs Unmeasured Emissions",
+            xaxis_title="Emissions (kg)", height=250,
+            margin=dict(l=50, r=50, t=60, b=50), legend=dict(orientation="h", y=-0.2),
         )
 
-    # Get approach name
+        # Donut chart
+        donut_fig = go.Figure()
+        donut_fig.add_trace(go.Pie(
+            labels=["Measured", "Unmeasured"], values=[measured, unmeasured],
+            hole=0.55, marker_colors=["#27ae60", "#e74c3c"],
+            textinfo="percent+label", textposition="outside",
+        ))
+        total_text = f"{total:,.2f} kg" if total is not None else "N/A"
+        donut_fig.update_layout(
+            title="Emission Proportions", height=400,
+            margin=dict(l=50, r=50, t=60, b=50), showlegend=False,
+            annotations=[dict(text=f"Total<br>{total_text}", x=0.5, y=0.5,
+                              font_size=14, showarrow=False)],
+        )
+
+        return html.Div([
+            dcc.Graph(figure=bar_fig),
+            dcc.Graph(figure=donut_fig),
+        ])
+
+    return html.Div()
+
+
+def _build_statistics_table(simulation_result):
+    """Build a detailed statistics HTML table."""
+    estimation_approach = simulation_result.get("estimation_approach")
+
+    header_style = {
+        "padding": "10px 14px", "border": "1px solid #ddd",
+        "backgroundColor": "#f2f2f2", "textAlign": "left",
+        "fontWeight": "bold", "fontSize": "13px",
+    }
+    cell_style = {
+        "padding": "10px 14px", "border": "1px solid #ddd",
+        "fontSize": "13px",
+    }
+
+    rows = []
+
+    if estimation_approach == "bootstrap":
+        extrapolation_results = simulation_result.get("extrapolation_results", {})
+        all_emissions = []
+        for key, emissions_list in extrapolation_results.items():
+            if len(emissions_list) > 0:
+                all_emissions.extend(emissions_list)
+
+        if len(all_emissions) == 0:
+            return html.P("No statistics available.", style={"color": "#7f8c8d"})
+
+        arr = np.array(all_emissions)
+        stats = [
+            ("N (samples)", f"{len(arr):,}"),
+            ("Mean", f"{np.mean(arr):,.2f} kg"),
+            ("Median", f"{np.median(arr):,.2f} kg"),
+            ("Std Deviation", f"{np.std(arr):,.2f} kg"),
+            ("CV %", f"{(np.std(arr) / np.mean(arr) * 100):,.1f}%" if np.mean(arr) != 0 else "N/A"),
+            ("Min", f"{np.min(arr):,.2f} kg"),
+            ("P5", f"{np.percentile(arr, 5):,.2f} kg"),
+            ("P25", f"{np.percentile(arr, 25):,.2f} kg"),
+            ("P50", f"{np.percentile(arr, 50):,.2f} kg"),
+            ("P75", f"{np.percentile(arr, 75):,.2f} kg"),
+            ("P95", f"{np.percentile(arr, 95):,.2f} kg"),
+            ("Max", f"{np.max(arr):,.2f} kg"),
+            ("95% CI Lower", f"{np.percentile(arr, 2.5):,.2f} kg"),
+            ("95% CI Upper", f"{np.percentile(arr, 97.5):,.2f} kg"),
+        ]
+        for label, value in stats:
+            rows.append(html.Tr([
+                html.Td(label, style=header_style),
+                html.Td(value, style=cell_style),
+            ]))
+
+    elif estimation_approach == "below_MDL":
+        total = simulation_result.get("below_mdl_emissions")
+        total_lower = simulation_result.get("below_mdl_emissions_lower")
+        total_upper = simulation_result.get("below_mdl_emissions_upper")
+        measured = simulation_result.get("measured_emissions")
+        measured_lower = simulation_result.get("measured_emissions_lower")
+        measured_upper = simulation_result.get("measured_emissions_upper")
+        unmeasured = simulation_result.get("unmeasured_emissions")
+        unmeasured_lower = simulation_result.get("unmeasured_emissions_lower")
+        unmeasured_upper = simulation_result.get("unmeasured_emissions_upper")
+
+        def _fmt(v):
+            return f"{v:,.2f} kg" if v is not None else "N/A"
+
+        def _ci(lo, hi):
+            if lo is not None and hi is not None:
+                return f"[{lo:,.2f}, {hi:,.2f}] kg"
+            return "N/A"
+
+        pct_measured = "N/A"
+        if measured is not None and total is not None and total != 0:
+            pct_measured = f"{(measured / total * 100):,.1f}%"
+
+        stats = [
+            ("Total Emissions", _fmt(total)),
+            ("Total 95% CI", _ci(total_lower, total_upper)),
+            ("Measured Emissions", _fmt(measured)),
+            ("Measured 95% CI", _ci(measured_lower, measured_upper)),
+            ("Unmeasured Emissions", _fmt(unmeasured)),
+            ("Unmeasured 95% CI", _ci(unmeasured_lower, unmeasured_upper)),
+            ("% Measured", pct_measured),
+        ]
+        for label, value in stats:
+            rows.append(html.Tr([
+                html.Td(label, style=header_style),
+                html.Td(value, style=cell_style),
+            ]))
+
+    if not rows:
+        return html.P("No statistics available.", style={"color": "#7f8c8d"})
+
+    return html.Div([
+        html.Table([html.Tbody(rows)], style={
+            "width": "100%", "borderCollapse": "collapse", "border": "1px solid #ddd",
+        })
+    ])
+
+
+def _build_metadata_display(simulation_result):
+    """Build simulation configuration metadata display."""
     approach_names = {
         "below_MDL": "Simulate Below Detection Limit",
         "bootstrap": "Bootstrap For Unmeasured Emissions",
     }
     estimation_approach = simulation_result.get("estimation_approach")
-    approach_name = approach_names.get(
-        estimation_approach, estimation_approach or "N/A"
-    )
+    approach_name = approach_names.get(estimation_approach, estimation_approach or "N/A")
 
-    # Convert ISO format datetime strings back to datetime objects if needed
     start_time = simulation_result.get("start_time")
     end_time = simulation_result.get("end_time")
-    if isinstance(start_time, str):
-        try:
-            start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            pass
-    if isinstance(end_time, str):
-        try:
-            end_time = datetime.fromisoformat(end_time.replace("Z", "+00:00"))
-        except (ValueError, AttributeError):
-            pass
+    for dt_str_attr in [start_time, end_time]:
+        pass  # we format inline below
 
-    # Display results
-    # Prepare measurement technology display
+    def _fmt_dt(val):
+        if isinstance(val, str):
+            try:
+                val = datetime.fromisoformat(val.replace("Z", "+00:00"))
+            except (ValueError, AttributeError):
+                return str(val)
+        if isinstance(val, datetime):
+            return val.strftime("%Y-%m-%d %H:%M:%S")
+        return str(val) if val else "N/A"
+
+    # Measurement technology
     measurement_tech = simulation_result.get("measurement_technology")
-    tech_display_elements = []
-    if measurement_tech:
-        # Handle both list (multiple) and single value (backward compatibility)
-        if isinstance(measurement_tech, list):
-            if len(measurement_tech) == 1:
-                tech_display = measurement_tech[0]
-                tech_display_elements.append(
-                    html.P(
-                        f"Measurement Technology: {tech_display}",
-                        style={"fontSize": "16px", "marginBottom": "10px"},
-                    )
-                )
-            else:
-                tech_display = ", ".join(measurement_tech)
-                tech_display_elements.append(
-                    html.P(
-                        f"Measurement Technologies: {tech_display}",
-                        style={"fontSize": "16px", "marginBottom": "10px"},
-                    )
-                )
-        else:
-            tech_display_elements.append(
-                html.P(
-                    f"Measurement Technology: {measurement_tech}",
-                    style={"fontSize": "16px", "marginBottom": "10px"},
-                )
-            )
-    elif simulation_result.get("minimum_detection_limit"):
-        tech_display_elements.append(
-            html.P(
-                f"Minimum Detection Limit: {simulation_result.get('minimum_detection_limit', 'N/A')} kg/hr",
-                style={"fontSize": "16px", "marginBottom": "10px"},
-            )
-        )
+    if isinstance(measurement_tech, list):
+        tech_display = ", ".join(measurement_tech)
+    elif measurement_tech:
+        tech_display = str(measurement_tech)
+    else:
+        mdl = simulation_result.get("minimum_detection_limit")
+        tech_display = f"Custom MDL: {mdl} kg/hr" if mdl else "N/A"
 
-    results_content = [
-        html.H4(
-            "Simulation Results:", style={"marginBottom": "10px", "color": "#34495e"}
-        ),
-        html.Div(
-            [
-                html.P(
-                    f"Emission Estimation Approach: {approach_name}",
-                    style={
-                        "fontSize": "16px",
-                        "fontWeight": "bold",
-                        "marginBottom": "10px",
-                        "color": "#2c3e50",
-                    },
-                ),
-                html.P(
-                    f"Processing Resolution: {simulation_result.get('processing_resolution', 'N/A')}",
-                    style={"fontSize": "16px", "marginBottom": "10px"},
-                ),
-            ]
-            + tech_display_elements
-        ),
+    items = [
+        ("Approach", approach_name),
+        ("Processing Resolution", simulation_result.get("processing_resolution", "N/A")),
+        ("Start Time", _fmt_dt(start_time)),
+        ("End Time", _fmt_dt(end_time)),
+        ("MC Iterations", str(simulation_result.get("monte_carlo_iterations", "N/A"))),
+        ("Measurement Technology", tech_display),
     ]
 
-    # Add start time and end time
-    if start_time:
-        start_time_display = start_time
-        if isinstance(start_time_display, datetime):
-            start_time_display = start_time_display.strftime("%Y-%m-%d %H:%M:%S")
-        results_content.append(
-            html.P(
-                f"Start Time: {start_time_display}",
-                style={"fontSize": "16px", "marginBottom": "10px"},
-            )
-        )
-    if end_time:
-        end_time_display = end_time
-        if isinstance(end_time_display, datetime):
-            end_time_display = end_time_display.strftime("%Y-%m-%d %H:%M:%S")
-        results_content.append(
-            html.P(
-                f"End Time: {end_time_display}",
-                style={"fontSize": "16px", "marginBottom": "10px"},
-            )
-        )
-
-    # Add iterations info
-    results_content.append(
-        html.P(
-            f"Number of Iterations: {simulation_result.get('monte_carlo_iterations', 'N/A')}",
-            style={"fontSize": "16px", "marginBottom": "10px"},
-        )
-    )
-
-    # Add approach-specific fields and results
     if estimation_approach == "below_MDL":
-        # Display wind consideration
-        if simulation_result.get("consider_wind"):
-            wind_display = (
-                "Yes" if simulation_result.get("consider_wind") == "yes" else "No"
-            )
-            results_content.append(
-                html.P(
-                    f"Consider Wind: {wind_display}",
-                    style={"fontSize": "16px", "marginBottom": "10px"},
-                )
-            )
-
-        # Display total emissions results (measured + unmeasured)
-        total_emissions = simulation_result.get(
-            "below_mdl_emissions"
-        )  # Legacy key name, but now contains total emissions
-        total_emissions_lower = simulation_result.get("below_mdl_emissions_lower")
-        total_emissions_upper = simulation_result.get("below_mdl_emissions_upper")
-        measured_emissions = simulation_result.get("measured_emissions")
-        measured_emissions_lower = simulation_result.get("measured_emissions_lower")
-        measured_emissions_upper = simulation_result.get("measured_emissions_upper")
-        unmeasured_emissions = simulation_result.get("unmeasured_emissions")
-        unmeasured_emissions_lower = simulation_result.get("unmeasured_emissions_lower")
-        unmeasured_emissions_upper = simulation_result.get("unmeasured_emissions_upper")
-
-        if total_emissions is not None:
-            # Display Measured Emissions
-            if measured_emissions is not None:
-                results_content.append(
-                    html.Div(
-                        [
-                            html.H5(
-                                "Measured Emissions:",
-                                style={
-                                    "fontSize": "18px",
-                                    "fontWeight": "bold",
-                                    "marginTop": "20px",
-                                    "marginBottom": "10px",
-                                    "color": "#2c3e50",
-                                },
-                            ),
-                            html.P(
-                                f"Measured Emissions: {measured_emissions:.2f} kg",
-                                style={"fontSize": "16px", "marginBottom": "5px"},
-                            ),
-                            html.P(
-                                f"95% Confidence Interval: [{measured_emissions_lower:.2f}, {measured_emissions_upper:.2f}] kg",
-                                style={
-                                    "fontSize": "16px",
-                                    "marginBottom": "10px",
-                                    "color": "#7f8c8d",
-                                },
-                            ),
-                        ]
-                    )
-                )
-            
-            # Display Unmeasured Emissions
-            if unmeasured_emissions is not None:
-                results_content.append(
-                    html.Div(
-                        [
-                            html.H5(
-                                "Unmeasured Emissions (Below Detection Limit):",
-                                style={
-                                    "fontSize": "18px",
-                                    "fontWeight": "bold",
-                                    "marginTop": "20px",
-                                    "marginBottom": "10px",
-                                    "color": "#2c3e50",
-                                },
-                            ),
-                            html.P(
-                                f"Unmeasured Emissions: {unmeasured_emissions:.2f} kg",
-                                style={"fontSize": "16px", "marginBottom": "5px"},
-                            ),
-                            html.P(
-                                f"95% Confidence Interval: [{unmeasured_emissions_lower:.2f}, {unmeasured_emissions_upper:.2f}] kg",
-                                style={
-                                    "fontSize": "16px",
-                                    "marginBottom": "10px",
-                                    "color": "#7f8c8d",
-                                },
-                            ),
-                        ]
-                    )
-                )
-            
-            # Display Total Emissions
-            results_content.append(
-                html.Div(
-                    [
-                        html.H5(
-                            "Total Emissions (Measured + Unmeasured):",
-                            style={
-                                "fontSize": "18px",
-                                "fontWeight": "bold",
-                                "marginTop": "20px",
-                                "marginBottom": "10px",
-                                "color": "#2c3e50",
-                            },
-                        ),
-                        html.P(
-                            f"Total Emissions: {total_emissions:.2f} kg",
-                            style={"fontSize": "16px", "marginBottom": "5px", "fontWeight": "bold"},
-                        ),
-                        html.P(
-                            f"95% Confidence Interval: [{total_emissions_lower:.2f}, {total_emissions_upper:.2f}] kg",
-                            style={
-                                "fontSize": "16px",
-                                "marginBottom": "10px",
-                                "color": "#7f8c8d",
-                            },
-                        ),
-                        html.P(
-                            "Note: Total emissions includes emissions from all measured events plus simulated unmeasured emissions below detection limit.",
-                            style={
-                                "fontSize": "14px",
-                                "marginTop": "10px",
-                                "color": "#95a5a6",
-                                "fontStyle": "italic",
-                            },
-                        ),
-                    ]
-                )
-            )
-
+        wind = simulation_result.get("consider_wind")
+        if wind:
+            items.append(("Consider Wind", "Yes" if wind == "yes" else "No"))
     elif estimation_approach == "bootstrap":
-        # Display estimated duration
-        if simulation_result.get("estimated_duration"):
-            results_content.append(
-                html.P(
-                    f"Estimated Duration: {simulation_result.get('estimated_duration', 'N/A')} hours",
-                    style={"fontSize": "16px", "marginBottom": "10px"},
-                )
-            )
+        dur = simulation_result.get("estimated_duration")
+        if dur:
+            items.append(("Estimated Duration", f"{dur} hours"))
 
-        # Plot extrapolation results
-        extrapolation_results = simulation_result.get("extrapolation_results", {})
-        if extrapolation_results:
-            for key, emissions_list in extrapolation_results.items():
-                if len(emissions_list) > 0:
-                    # Create histogram of emissions
-                    fig = go.Figure()
-                    fig.add_trace(
-                        go.Histogram(
-                            x=emissions_list,
-                            nbinsx=30,
-                            name=f"Emission Distribution ({key})",
-                            marker_color="#3498db",
-                            opacity=0.7,
-                        )
-                    )
+    label_style = {"fontWeight": "bold", "color": "#2c3e50", "minWidth": "180px", "fontSize": "14px"}
+    value_style = {"color": "#34495e", "fontSize": "14px"}
 
-                    # Calculate statistics
-                    mean_emission = np.mean(emissions_list)
-                    median_emission = np.median(emissions_list)
-                    std_emission = np.std(emissions_list)
-                    min_emission = np.min(emissions_list)
-                    max_emission = np.max(emissions_list)
+    rows = []
+    for label, value in items:
+        rows.append(html.Div([
+            html.Span(f"{label}:", style=label_style),
+            html.Span(str(value), style=value_style),
+        ], style={"display": "flex", "gap": "10px", "padding": "8px 0", "borderBottom": "1px solid #f0f0f0"}))
 
-                    fig.update_layout(
-                        title=f"Distribution of Extrapolated Emissions ({key})",
-                        xaxis_title="Total Emissions (kg)",
-                        yaxis_title="Frequency",
-                        height=400,
-                        showlegend=False,
-                    )
-
-                    # Add statistics text
-                    stats_text = f"""
-                    Mean: {mean_emission:.2f} kg
-                    Median: {median_emission:.2f} kg
-                    Std Dev: {std_emission:.2f} kg
-                    Min: {min_emission:.2f} kg
-                    Max: {max_emission:.2f} kg
-                    """
-
-                    results_content.append(
-                        html.Div(
-                            [
-                                dcc.Graph(figure=fig),
-                                html.Div(
-                                    [
-                                        html.H5(
-                                            f"Statistics ({key}):",
-                                            style={
-                                                "marginTop": "20px",
-                                                "marginBottom": "10px",
-                                            },
-                                        ),
-                                        html.Pre(
-                                            stats_text,
-                                            style={
-                                                "backgroundColor": "#f8f9fa",
-                                                "padding": "15px",
-                                                "borderRadius": "5px",
-                                                "fontSize": "14px",
-                                                "fontFamily": "monospace",
-                                            },
-                                        ),
-                                    ]
-                                ),
-                            ],
-                            style={"marginTop": "20px", "marginBottom": "20px"},
-                        )
-                    )
-
-    # Return results as HTML div
-    return html.Div(
-        [
-            html.Div(
-                results_content,
-                style={
-                    "padding": "15px",
-                    "backgroundColor": "white",
-                    "borderRadius": "5px",
-                    "border": "1px solid #bdc3c7",
-                },
-            )
-        ]
-    )
+    return html.Div(rows)
 
 
 @app.callback(
-    Output("simulation-results-display", "children"),
+    [
+        Output("results-summary-cards", "children"),
+        Output("results-charts-container", "children"),
+        Output("results-statistics-table", "children"),
+        Output("results-metadata-display", "children"),
+        Output("simulation-results-display", "children"),
+    ],
     [
         Input("section-content", "children"),
         Input("stored-simulation-results", "data"),
@@ -3038,25 +3021,23 @@ def _format_simulation_results_display(simulation_result):
 def display_simulation_results(
     section_content, simulation_results, results_button_clicks
 ):
-    """Display simulation results when on the Results page"""
-    # Check if we're on the results page by checking if section_content contains results content
-    # We'll use a simpler approach: just check if stored-simulation-results has data
-    if simulation_results is None:
-        return html.Div(
-            [
-                html.P(
-                    "No simulation results available. Please run a simulation first.",
-                    style={
-                        "color": "#7f8c8d",
-                        "fontStyle": "italic",
-                        "textAlign": "center",
-                        "padding": "40px",
-                    },
-                )
-            ]
-        )
+    """Display simulation results across the four dashboard sections."""
+    empty = html.Div()
+    no_data_msg = html.P(
+        "No simulation results available. Please run a simulation first.",
+        style={"color": "#7f8c8d", "fontStyle": "italic", "textAlign": "center", "padding": "40px"},
+    )
 
-    return _format_simulation_results_display(simulation_results)
+    if simulation_results is None:
+        return no_data_msg, empty, empty, empty, empty
+
+    return (
+        _build_summary_cards(simulation_results),
+        _build_charts(simulation_results),
+        _build_statistics_table(simulation_results),
+        _build_metadata_display(simulation_results),
+        empty,
+    )
 
 
 @app.callback(
@@ -4257,6 +4238,72 @@ def download_emission_events(csv_clicks, json_clicks, events_data):
         )
 
     raise PreventUpdate
+
+
+@app.callback(
+    Output("download-results-csv", "data"),
+    Input("download-results-csv-button", "n_clicks"),
+    State("stored-simulation-results", "data"),
+    prevent_initial_call=True,
+)
+def download_results_csv(n_clicks, simulation_results):
+    """Export simulation results as a CSV file."""
+    if not n_clicks or simulation_results is None:
+        raise PreventUpdate
+
+    estimation_approach = simulation_results.get("estimation_approach", "N/A")
+    rows = []
+
+    # Metadata rows
+    rows.append({"Section": "Metadata", "Statistic": "Approach", "Value": estimation_approach})
+    rows.append({"Section": "Metadata", "Statistic": "Resolution", "Value": simulation_results.get("processing_resolution", "N/A")})
+    rows.append({"Section": "Metadata", "Statistic": "Start Time", "Value": simulation_results.get("start_time", "N/A")})
+    rows.append({"Section": "Metadata", "Statistic": "End Time", "Value": simulation_results.get("end_time", "N/A")})
+    rows.append({"Section": "Metadata", "Statistic": "MC Iterations", "Value": simulation_results.get("monte_carlo_iterations", "N/A")})
+
+    if estimation_approach == "bootstrap":
+        extrapolation_results = simulation_results.get("extrapolation_results", {})
+        all_emissions = []
+        for key, emissions_list in extrapolation_results.items():
+            if len(emissions_list) > 0:
+                all_emissions.extend(emissions_list)
+
+        if len(all_emissions) > 0:
+            arr = np.array(all_emissions)
+            rows.append({"Section": "Statistics", "Statistic": "N", "Value": len(arr)})
+            rows.append({"Section": "Statistics", "Statistic": "Mean (kg)", "Value": f"{np.mean(arr):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "Median (kg)", "Value": f"{np.median(arr):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "Std Dev (kg)", "Value": f"{np.std(arr):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "Min (kg)", "Value": f"{np.min(arr):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P2.5 (kg)", "Value": f"{np.percentile(arr, 2.5):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P5 (kg)", "Value": f"{np.percentile(arr, 5):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P25 (kg)", "Value": f"{np.percentile(arr, 25):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P50 (kg)", "Value": f"{np.percentile(arr, 50):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P75 (kg)", "Value": f"{np.percentile(arr, 75):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P95 (kg)", "Value": f"{np.percentile(arr, 95):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "P97.5 (kg)", "Value": f"{np.percentile(arr, 97.5):.4f}"})
+            rows.append({"Section": "Statistics", "Statistic": "Max (kg)", "Value": f"{np.max(arr):.4f}"})
+
+            # Add all MC sample values
+            for i, val in enumerate(all_emissions):
+                rows.append({"Section": "MC Samples", "Statistic": f"Sample {i+1}", "Value": f"{val:.4f}"})
+
+    elif estimation_approach == "below_MDL":
+        def _add(label, val):
+            rows.append({"Section": "Statistics", "Statistic": label, "Value": f"{val:.4f}" if val is not None else "N/A"})
+
+        _add("Total Emissions (kg)", simulation_results.get("below_mdl_emissions"))
+        _add("Total Lower CI (kg)", simulation_results.get("below_mdl_emissions_lower"))
+        _add("Total Upper CI (kg)", simulation_results.get("below_mdl_emissions_upper"))
+        _add("Measured Emissions (kg)", simulation_results.get("measured_emissions"))
+        _add("Measured Lower CI (kg)", simulation_results.get("measured_emissions_lower"))
+        _add("Measured Upper CI (kg)", simulation_results.get("measured_emissions_upper"))
+        _add("Unmeasured Emissions (kg)", simulation_results.get("unmeasured_emissions"))
+        _add("Unmeasured Lower CI (kg)", simulation_results.get("unmeasured_emissions_lower"))
+        _add("Unmeasured Upper CI (kg)", simulation_results.get("unmeasured_emissions_upper"))
+
+    df = pd.DataFrame(rows)
+    return dcc.send_data_frame(df.to_csv, "simulation_results.csv", index=False)
 
 
 if __name__ == "__main__":

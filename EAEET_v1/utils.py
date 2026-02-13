@@ -26,19 +26,11 @@ def quantification_correction(
     Returns:
         List of sampled rates with applied uncertainty
     """
-    sampled_rates = []
-    for mc in range(iterations):
-        for rate in rates:
-            rate_sample = np.random.choice(rates, size=1, replace=True)
-            rate_sample = (
-                rate_sample
-                * np.random.uniform(
-                    lower_uncertainty_bound, upper_uncertainty_bound, size=1
-                )[0]
-            )
-            sampled_rates.append(rate_sample)
-
-    return sampled_rates
+    rates_array = np.asarray(rates)
+    total_samples = iterations * len(rates_array)
+    sampled = np.random.choice(rates_array, size=total_samples, replace=True)
+    multipliers = np.random.uniform(lower_uncertainty_bound, upper_uncertainty_bound, size=total_samples)
+    return (sampled * multipliers).tolist()
 
 
 def duration_correction(durations, lower_uncertainty_bound, upper_uncertainty_bound, iterations=1000):
@@ -54,16 +46,11 @@ def duration_correction(durations, lower_uncertainty_bound, upper_uncertainty_bo
     Returns:
         List of sampled durations with applied uncertainty
     """
-    sampled_durations = []
-    for mc in range(iterations):
-        for duration in durations:
-            duration_sample = np.random.choice(durations, size=1, replace=True)
-            duration_sample = (
-                duration_sample
-                * np.random.uniform(lower_uncertainty_bound, upper_uncertainty_bound, size=1)[0]
-            )
-            sampled_durations.append(duration_sample)
-    return sampled_durations
+    durations_array = np.asarray(durations)
+    total_samples = iterations * len(durations_array)
+    sampled = np.random.choice(durations_array, size=total_samples, replace=True)
+    multipliers = np.random.uniform(lower_uncertainty_bound, upper_uncertainty_bound, size=total_samples)
+    return (sampled * multipliers).tolist()
 
 
 def fitting_distribution(data, distribution_type="lognormal"):
@@ -95,6 +82,8 @@ def fitting_distribution(data, distribution_type="lognormal"):
         return weibull_min.fit(data, floc=0)
     elif distribution_type == "gamma":
         return gamma.fit(data, floc=0)
+    else:
+        raise ValueError(f"Unknown distribution type: {distribution_type}")
 
 def probability_of_detection(technology, wind_speed=None, wind_consider=False, mdl_define=None):
     """

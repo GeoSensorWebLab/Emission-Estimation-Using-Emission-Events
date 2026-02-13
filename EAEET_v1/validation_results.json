@@ -1,0 +1,33 @@
+{
+  "stability": {
+    "test": "Bootstrap Stability",
+    "mean_emissions": 10503467.99723,
+    "std_emissions": 28993.9981686998,
+    "cv": 0.2760421431887655,
+    "interpretation": "\u2705 EXCELLENT - Results are highly consistent",
+    "status": "PASS"
+  },
+  "sensitivity": {
+    "test": "Sensitivity Analysis",
+    "baseline_emissions": 10501035.199000001,
+    "sensitivities": {
+      "rate": {
+        "change": 10.503881840192669,
+        "interpretation": "10% increase in rates \u2192 10.5% change in emissions"
+      },
+      "duration": {
+        "change": 8.440817852742834,
+        "interpretation": "10% increase in durations \u2192 8.4% change in emissions"
+      },
+      "probability": {
+        "change": 8.384776874987022,
+        "interpretation": "10% increase in probability \u2192 8.4% change in emissions"
+      }
+    }
+  },
+  "overall": {
+    "stability_passed": true,
+    "assessment": "\u2705 PASS - Simulation is stable and consistent",
+    "recommendation": "Results are suitable for use. CV is within acceptable limits."
+  }
+}

@@ -78,6 +78,19 @@ def get_h3_style():
     }
 
 
+def get_summary_card_style(border_color='#3498db'):
+    """Style for KPI summary cards on results page"""
+    return {
+        'flex': '1 1 200px',
+        'padding': '20px',
+        'backgroundColor': 'white',
+        'borderRadius': '8px',
+        'borderLeft': f'4px solid {border_color}',
+        'boxShadow': '0 2px 4px rgba(0,0,0,0.1)',
+        'minWidth': '180px',
+    }
+
+
 def get_disabled_button_style():
     """Style for disabled navigation buttons"""
     base_nav_button_style = {
@@ -543,8 +556,36 @@ def get_results_content():
     """Content for Results section"""
     return html.Div([
         html.H2("Results", style=get_section_title_style('#e67e22')),
-        html.Div(id='simulation-results-display', style={'marginTop': '20px'}),
-        
+
+        # KPI summary cards row
+        html.Div(id='results-summary-cards', style={'marginTop': '20px'}),
+
+        # Distribution Analysis section
+        html.Div([
+            html.H3("Distribution Analysis", style=get_h3_style()),
+            html.Div(id='results-charts-container'),
+        ], style=get_section_container_style()),
+
+        # Detailed Statistics section
+        html.Div([
+            html.H3("Detailed Statistics", style=get_h3_style()),
+            html.Div(id='results-statistics-table'),
+        ], style=get_section_container_style()),
+
+        # Simulation Configuration section
+        html.Div([
+            html.H3("Simulation Configuration", style=get_h3_style()),
+            html.Div(id='results-metadata-display'),
+        ], style=get_section_container_style()),
+
+        # Export Results section
+        html.Div([
+            html.H3("Export Results", style=get_h3_style()),
+            html.Button('Download Results as CSV', id='download-results-csv-button', n_clicks=0,
+                        style=get_button_style('#e67e22')),
+            dcc.Download(id='download-results-csv'),
+        ], style=get_section_container_style()),
+
         # Bottom-up inventory input section
         html.Div([
             html.H3("Compare with Bottom-Up Inventory", style=get_h3_style()),
@@ -597,6 +638,9 @@ def get_results_content():
                       style=get_button_style('#e67e22')),
             html.Div(id='bottomup-comparison-chart', style={'marginTop': '30px'}),
         ], style=get_section_container_style()),
+
+        # Hidden div for backward compatibility with old callback references
+        html.Div(id='simulation-results-display', style={'display': 'none'}),
     ])
 
 
@@ -767,7 +811,7 @@ def create_top_navigation():
     
     return html.Div([
         html.Div([
-            html.H2("Emission Event Data Analysis Tool", style={
+            html.H2("EAEET V1.0", style={
                 'color': '#2c3e50',
                 'margin': '0',
                 'fontSize': '24px',
@@ -915,6 +959,14 @@ def create_app_layout():
             dcc.Graph(id='leak-data-histogram', style={'display': 'none'}),
             html.Div(id='wind-data-status', style={'display': 'none'}),
             html.Div(id='simulation-status', style={'display': 'none'}),
+            # From Results section
+            html.Div(id='results-summary-cards', style={'display': 'none'}),
+            html.Div(id='results-charts-container', style={'display': 'none'}),
+            html.Div(id='results-statistics-table', style={'display': 'none'}),
+            html.Div(id='results-metadata-display', style={'display': 'none'}),
+            html.Button('Download Results as CSV', id='download-results-csv-button', n_clicks=0, style={'display': 'none'}),
+            dcc.Download(id='download-results-csv'),
+            html.Div(id='simulation-results-display', style={'display': 'none'}),
         ], style={'display': 'none'}),
         
         # Top navigation bar
