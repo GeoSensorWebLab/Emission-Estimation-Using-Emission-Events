@@ -610,7 +610,7 @@ def create_initial_events(data: pd.DataFrame, column_mapping: Dict[str, str],
         source_data = source_group.sort_values(by=time_col).reset_index(drop=True)
         
         # Find all detections (rate > 0)
-        detections = source_data[source_data[rate_col] > 0].copy()
+        detections = source_data[pd.to_numeric(source_data[rate_col], errors='coerce') > 0].copy()
         
         for idx, row in detections.iterrows():
             detection_time = row[time_col]
