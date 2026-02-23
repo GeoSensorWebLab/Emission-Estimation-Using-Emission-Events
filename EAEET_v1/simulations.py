@@ -820,7 +820,7 @@ def simulate_below_mdl(
     _load_leak_data(leak_data=leak_data)
     
     # Handle technology/technologies parameter (support both single and multiple)
-    if technologies is None:
+    if technologies is None or (isinstance(technologies, list) and len(technologies) == 0):
         if technology is None:
             raise ValueError("Either 'technologies' or 'technology' parameter must be provided")
         technologies = [technology]

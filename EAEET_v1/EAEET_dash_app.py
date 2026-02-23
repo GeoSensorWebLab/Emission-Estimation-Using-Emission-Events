@@ -31,10 +31,11 @@ from components import (
     get_event_uncertainty_calculator_content,
     create_emission_events_table,
     create_sankey_chart,
-    get_active_button_style,
-    get_inactive_button_style,
+    get_active_step_style,
+    get_completed_step_style,
+    get_inactive_step_style,
+    get_disabled_step_style,
     get_button_style,
-    get_disabled_button_style,
     get_summary_card_style,
     get_section_container_style,
 )
@@ -182,26 +183,7 @@ def parse_contents(contents, filename):
 def switch_section(
     data_inv_clicks, uncertainty_clicks, sim_clicks, results_clicks, workflow_status
 ):
-    """Switch between sections and update button styles for top navigation with workflow enforcement"""
-    # Base style for top nav buttons (override width and marginBottom)
-    base_nav_style = {
-        "marginRight": "10px",
-        "marginBottom": "0",
-        "padding": "10px 20px",
-        "width": "auto",
-        "textAlign": "center",
-        "display": "inline-block",
-    }
-
-    def get_active_nav_style():
-        return {**get_active_button_style(), **base_nav_style}
-
-    def get_inactive_nav_style():
-        return {**get_inactive_button_style(), **base_nav_style}
-
-    def get_disabled_nav_style():
-        return get_disabled_button_style()
-
+    """Switch between sections and update step styles with workflow enforcement"""
     # Get workflow status (default to False if not set)
     step1_completed = (
         workflow_status.get("step1_completed", False) if workflow_status else False
@@ -210,74 +192,72 @@ def switch_section(
         workflow_status.get("step2_completed", False) if workflow_status else False
     )
 
-    # Determine button styles based on workflow status
-    uncertainty_button_style = (
-        get_disabled_nav_style() if not step1_completed else get_inactive_nav_style()
+    # Determine step styles based on workflow status
+    uncertainty_style = (
+        get_disabled_step_style() if not step1_completed else get_inactive_step_style()
     )
-    simulation_button_style = (
-        get_disabled_nav_style() if not step2_completed else get_inactive_nav_style()
+    simulation_style = (
+        get_disabled_step_style() if not step2_completed else get_inactive_step_style()
     )
 
     ctx = callback_context
     if not ctx.triggered:
-        # Default to Loading Emissions Data
+        # Default to step 1
         return (
             get_data_investigation_content(),
-            get_active_nav_style(),
-            uncertainty_button_style,
-            simulation_button_style,
-            get_inactive_nav_style(),
+            get_active_step_style(),
+            uncertainty_style,
+            simulation_style,
+            get_inactive_step_style(),
         )
 
     button_id = ctx.triggered[0]["prop_id"].split(".")[0]
 
     # Check if navigation is allowed based on workflow
     if button_id == "section-uncertainty-calculator-button" and not step1_completed:
-        # Prevent navigation - stay on current page
         raise PreventUpdate
     elif button_id == "section-simulation-button" and not step2_completed:
-        # Prevent navigation - stay on current page
         raise PreventUpdate
 
     if button_id == "section-data-investigation-button":
         return (
             get_data_investigation_content(),
-            get_active_nav_style(),
-            uncertainty_button_style,
-            simulation_button_style,
-            get_inactive_nav_style(),
+            get_active_step_style(),
+            uncertainty_style,
+            simulation_style,
+            get_inactive_step_style(),
         )
     elif button_id == "section-uncertainty-calculator-button":
         return (
             get_event_uncertainty_calculator_content(),
-            get_inactive_nav_style(),
-            get_active_nav_style(),
-            simulation_button_style,
-            get_inactive_nav_style(),
+            get_completed_step_style(),  # step 1 completed
+            get_active_step_style(),
+            simulation_style,
+            get_inactive_step_style(),
         )
     elif button_id == "section-simulation-button":
         return (
             get_simulation_selection_content(),
-            get_inactive_nav_style(),
-            get_inactive_nav_style(),
-            get_active_nav_style(),
-            get_inactive_nav_style(),
+            get_completed_step_style(),   # step 1 completed
+            get_completed_step_style(),   # step 2 completed
+            get_active_step_style(),
+            get_inactive_step_style(),
         )
     elif button_id == "section-results-button":
         return (
             get_results_content(),
-            get_inactive_nav_style(),
-            get_inactive_nav_style(),
-            get_inactive_nav_style(),
-            get_active_nav_style(),
+            get_completed_step_style(),   # step 1 completed
+            get_completed_step_style(),   # step 2 completed
+            get_completed_step_style(),   # step 3 completed
+            get_active_step_style(),
         )
 
     return (
         get_data_investigation_content(),
-        get_active_nav_style(),
-        uncertainty_button_style,
-        simulation_button_style,
-        get_inactive_nav_style(),
+        get_active_step_style(),
+        uncertainty_style,
+        simulation_style,
+        get_inactive_step_style(),
     )
 
 
@@ -329,25 +309,7 @@ def update_step2_completion(uncertainty_clicks, workflow_status, stored_events):
     prevent_initial_call=True,
 )
 def update_navigation_button_styles(workflow_status):
-    """Update navigation button styles based on workflow status"""
-    base_nav_style = {
-        "marginRight": "10px",
-        "marginBottom": "0",
-        "padding": "10px 20px",
-        "width": "auto",
-        "textAlign": "center",
-        "display": "inline-block",
-    }
-
-    def get_active_nav_style():
-        return {**get_active_button_style(), **base_nav_style}
-
-    def get_inactive_nav_style():
-        return {**get_inactive_button_style(), **base_nav_style}
-
-    def get_disabled_nav_style():
-        return get_disabled_button_style()
-
+    """Update step styles based on workflow status"""
     if workflow_status is None:
         workflow_status = {"step1_completed": False, "step2_completed": False}
 
@@ -355,13 +317,36 @@ def update_navigation_button_styles(workflow_status):
     step2_completed = workflow_status.get("step2_completed", False)
 
     uncertainty_style = (
-        get_disabled_nav_style() if not step1_completed else get_inactive_nav_style()
+        get_disabled_step_style() if not step1_completed else get_inactive_step_style()
     )
     simulation_style = (
-        get_disabled_nav_style() if not step2_completed else get_inactive_nav_style()
+        get_disabled_step_style() if not step2_completed else get_inactive_step_style()
     )
 
     return uncertainty_style, simulation_style
+
+
+@app.callback(
+    [
+        Output("user-guide-content", "style"),
+        Output("user-guide-chevron", "style"),
+    ],
+    [Input("user-guide-toggle", "n_clicks")],
+    prevent_initial_call=True,
+)
+def toggle_user_guide(n_clicks):
+    """Toggle the collapsible user guide section"""
+    is_open = n_clicks % 2 == 1
+    content_style = {"display": "block"} if is_open else {"display": "none"}
+    chevron_style = {
+        "display": "inline-block",
+        "marginRight": "8px",
+        "fontSize": "12px",
+        "transition": "transform 0.2s ease",
+        "color": "#3498db",
+        "transform": "rotate(90deg)" if is_open else "rotate(0deg)",
+    }
+    return content_style, chevron_style
 
 
 @app.callback(
@@ -2115,12 +2100,10 @@ def run_simulation_callback(
     mdl_value = None
     tech_value = None
 
-    # If 'define_technology' is selected, extract MDL value
+    # If 'define_technology' is selected, extract MDL value.
+    # Keep 'define_technology' in the list — simulations.py maps it to 'User Defined' internally.
     if "define_technology" in technologies_list and minimum_detection_limit is not None:
         mdl_value = float(minimum_detection_limit)
-        # Remove 'define_technology' from the list and replace with actual technology name
-        technologies_list = [t for t in technologies_list if t != "define_technology"]
-        # Note: We'll pass technologies_list to the function, not tech_value
 
     # Convert start date to datetime.datetime object (at midnight)
     start_datetime = None
@@ -2818,24 +2801,8 @@ def _build_charts(simulation_result):
             margin=dict(l=50, r=50, t=60, b=50), legend=dict(orientation="h", y=-0.2),
         )
 
-        # Donut chart
-        donut_fig = go.Figure()
-        donut_fig.add_trace(go.Pie(
-            labels=["Measured", "Unmeasured"], values=[measured, unmeasured],
-            hole=0.55, marker_colors=["#27ae60", "#e74c3c"],
-            textinfo="percent+label", textposition="outside",
-        ))
-        total_text = f"{total:,.2f} kg" if total is not None else "N/A"
-        donut_fig.update_layout(
-            title="Emission Proportions", height=400,
-            margin=dict(l=50, r=50, t=60, b=50), showlegend=False,
-            annotations=[dict(text=f"Total<br>{total_text}", x=0.5, y=0.5,
-                              font_size=14, showarrow=False)],
-        )
-
         return html.Div([
             dcc.Graph(figure=bar_fig),
-            dcc.Graph(figure=donut_fig),
         ])
 
     return html.Div()
@@ -2869,18 +2836,10 @@ def _build_statistics_table(simulation_result):
 
         arr = np.array(all_emissions)
         stats = [
-            ("N (samples)", f"{len(arr):,}"),
             ("Mean", f"{np.mean(arr):,.2f} kg"),
             ("Median", f"{np.median(arr):,.2f} kg"),
             ("Std Deviation", f"{np.std(arr):,.2f} kg"),
             ("CV %", f"{(np.std(arr) / np.mean(arr) * 100):,.1f}%" if np.mean(arr) != 0 else "N/A"),
-            ("Min", f"{np.min(arr):,.2f} kg"),
-            ("P5", f"{np.percentile(arr, 5):,.2f} kg"),
-            ("P25", f"{np.percentile(arr, 25):,.2f} kg"),
-            ("P50", f"{np.percentile(arr, 50):,.2f} kg"),
-            ("P75", f"{np.percentile(arr, 75):,.2f} kg"),
-            ("P95", f"{np.percentile(arr, 95):,.2f} kg"),
-            ("Max", f"{np.max(arr):,.2f} kg"),
             ("95% CI Lower", f"{np.percentile(arr, 2.5):,.2f} kg"),
             ("95% CI Upper", f"{np.percentile(arr, 97.5):,.2f} kg"),
         ]
