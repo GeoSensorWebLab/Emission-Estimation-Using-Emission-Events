@@ -113,6 +113,47 @@ def get_disabled_button_style():
     }
 
 
+def get_active_step_style():
+    """Style for the currently active step circle"""
+    return {
+        'backgroundColor': '#3498db',
+        'color': 'white',
+        'borderColor': '#2980b9',
+        'cursor': 'pointer',
+    }
+
+
+def get_completed_step_style():
+    """Style for a completed step circle"""
+    return {
+        'backgroundColor': '#27ae60',
+        'color': 'white',
+        'borderColor': '#219a52',
+        'cursor': 'pointer',
+    }
+
+
+def get_inactive_step_style():
+    """Style for an available but not active step circle"""
+    return {
+        'backgroundColor': '#ffffff',
+        'color': '#7f8c8d',
+        'borderColor': '#bdc3c7',
+        'cursor': 'pointer',
+    }
+
+
+def get_disabled_step_style():
+    """Style for a locked/disabled step circle"""
+    return {
+        'backgroundColor': '#f0f0f0',
+        'color': '#bdc3c7',
+        'borderColor': '#e0e0e0',
+        'cursor': 'not-allowed',
+        'opacity': '0.5',
+    }
+
+
 def get_button_style(color='#3498db'):
     """Style for action buttons"""
     # Color-specific shadow colors
@@ -186,40 +227,6 @@ def create_modal(modal_id, children, is_open=False):
 def get_data_investigation_content():
     """Content for Loading Emissions Data section (Steps 1-5)"""
     return html.Div([
-        # User Guide Section
-        html.Div([
-            html.H3("User Guide", style=get_h3_style()),
-            html.P("To use this tool, please follow the steps below:", 
-                  style={'marginBottom': '15px', 'color': '#2c3e50', 'fontSize': '16px', 'fontWeight': 'bold'}),
-            html.Ol([
-                html.Li([
-                    html.Span("Load emissions measurements and map them to the corresponding fields to create emission events.", 
-                            style={'color': '#34495e'})
-                ], style={'marginBottom': '12px', 'lineHeight': '1.6'}),
-                html.Li([
-                    html.Span("Review the emission events and decide whether emissions should be treated as intermittent or assumed to be continuous. Select whether you would like to simulate duration uncertainty.", 
-                            style={'color': '#34495e'})
-                ], style={'marginBottom': '12px', 'lineHeight': '1.6'}),
-                html.Li([
-                    html.Span("Configure the simulation settings by selecting the appropriate model and parameter values.", 
-                            style={'color': '#34495e'})
-                ], style={'marginBottom': '12px', 'lineHeight': '1.6'}),
-                html.Li([
-                    html.Span("Run the simulation and wait for the process to complete.", 
-                            style={'color': '#34495e'})
-                ], style={'marginBottom': '12px', 'lineHeight': '1.6'}),
-                html.Li([
-                    html.Span("Review and explore the results once the simulation finishes.", 
-                            style={'color': '#34495e'})
-                ], style={'marginBottom': '12px', 'lineHeight': '1.6'}),
-            ], style={'paddingLeft': '25px', 'marginBottom': '20px'}),
-        ], style={
-            **get_section_container_style(),
-            'backgroundColor': '#f8f9fa',
-            'borderLeft': '4px solid #3498db',
-            'marginBottom': '30px'
-        }),
-        
         html.H2("Load Emissions Data", style=get_section_title_style('#3498db')),
         
         # Combined upload and mapping section
@@ -794,75 +801,118 @@ def get_event_uncertainty_calculator_content():
     ])
 
 
-def create_top_navigation():
-    """Create the top navigation bar"""
-    # Base button style for top nav (override width and marginBottom from sidebar styles)
-    base_nav_button_style = {
-        'marginRight': '10px',
-        'marginBottom': '0',
-        'padding': '10px 20px',
-        'width': 'auto',
-        'textAlign': 'center',
-        'display': 'inline-block'
-    }
-    
-    active_nav_style = {**get_active_button_style(), **base_nav_button_style}
-    inactive_nav_style = {**get_inactive_button_style(), **base_nav_button_style}
-    
+def create_user_guide():
+    """Create the collapsible user guide section"""
     return html.Div([
+        # Clickable toggle header
+        html.Div([
+            html.Span('\u25B6', id='user-guide-chevron', style={
+                'display': 'inline-block',
+                'marginRight': '8px',
+                'fontSize': '12px',
+                'transition': 'transform 0.2s ease',
+                'color': '#3498db',
+            }),
+            html.Span("User Guide", style={
+                'fontSize': '15px',
+                'fontWeight': '600',
+                'color': '#2c3e50',
+            }),
+        ], id='user-guide-toggle', n_clicks=0, role='button', style={
+            'cursor': 'pointer',
+            'padding': '8px 12px',
+            'userSelect': 'none',
+        }),
+        # Collapsible content (hidden by default)
+        html.Div([
+            html.Ol([
+                html.Li([
+                    html.Span("Load emissions measurements and map them to the corresponding fields to create emission events.",
+                            style={'color': '#34495e'})
+                ], style={'marginBottom': '8px', 'lineHeight': '1.5'}),
+                html.Li([
+                    html.Span("Review the emission events and decide whether emissions should be treated as intermittent or assumed to be continuous. Select whether you would like to simulate duration uncertainty.",
+                            style={'color': '#34495e'})
+                ], style={'marginBottom': '8px', 'lineHeight': '1.5'}),
+                html.Li([
+                    html.Span("Configure the simulation settings by selecting the appropriate model and parameter values.",
+                            style={'color': '#34495e'})
+                ], style={'marginBottom': '8px', 'lineHeight': '1.5'}),
+                html.Li([
+                    html.Span("Run the simulation and wait for the process to complete.",
+                            style={'color': '#34495e'})
+                ], style={'marginBottom': '8px', 'lineHeight': '1.5'}),
+                html.Li([
+                    html.Span("Review and explore the results once the simulation finishes.",
+                            style={'color': '#34495e'})
+                ], style={'marginBottom': '0', 'lineHeight': '1.5'}),
+            ], style={'paddingLeft': '25px', 'margin': '8px 0 0 0', 'fontSize': '13px'}),
+        ], id='user-guide-content', style={'display': 'none'}),
+    ], style={
+        'backgroundColor': '#f8f9fa',
+        'borderLeft': '3px solid #3498db',
+        'borderRadius': '4px',
+        'margin': '0 30px',
+    })
+
+
+def _make_step_item(step_number, label, element_id, style_dict):
+    """Create a single step item (circle + label) for the step flow.
+    The element_id and n_clicks go on the circle div so the callback
+    can set its style directly. The wrapper div handles visual layout."""
+    is_completed = style_dict.get('backgroundColor') == '#27ae60'
+    circle_content = '\u2713' if is_completed else str(step_number)
+
+    return html.Div([
+        html.Div(circle_content, id=element_id, n_clicks=0,
+                 className='step-circle', role='button', tabIndex='0',
+                 style=style_dict),
+        html.Div(label, className='step-label'),
+    ], className='step-item')
+
+
+def create_step_flow():
+    """Create the horizontal step-flow stepper component"""
+    steps = [
+        (1, 'Load Data', 'section-data-investigation-button', get_active_step_style()),
+        (2, 'Event Browser', 'section-uncertainty-calculator-button', get_disabled_step_style()),
+        (3, 'Simulations', 'section-simulation-button', get_disabled_step_style()),
+        (4, 'Results', 'section-results-button', get_disabled_step_style()),
+    ]
+
+    children = []
+    for i, (num, label, eid, style) in enumerate(steps):
+        if i > 0:
+            # Add connector line between steps
+            children.append(html.Div(className='step-connector'))
+        children.append(_make_step_item(num, label, eid, style))
+
+    return html.Div(children, className='step-flow-row')
+
+
+def create_header_section():
+    """Create the persistent header with title, user guide, and step flow"""
+    return html.Div([
+        # Title row
         html.Div([
             html.H2("EAEET V1.0", style={
                 'color': '#2c3e50',
                 'margin': '0',
-                'fontSize': '24px',
+                'fontSize': '22px',
                 'fontWeight': '600',
-                'display': 'inline-block',
-                'marginRight': '40px'
             }),
-            html.Button(
-                'Load Emissions Data',
-                id='section-data-investigation-button',
-                n_clicks=0,
-                className='section-button',
-                style=active_nav_style
-            ),
-            html.Button(
-                'Emissions Event Browser',
-                id='section-uncertainty-calculator-button',
-                n_clicks=0,
-                className='section-button',
-                style=inactive_nav_style
-            ),
-            html.Button(
-                'Simulations',
-                id='section-simulation-button',
-                n_clicks=0,
-                className='section-button',
-                style=inactive_nav_style
-            ),
-            html.Button(
-                'Results',
-                id='section-results-button',
-                n_clicks=0,
-                className='section-button',
-                style=inactive_nav_style
-            ),
         ], style={
-            'display': 'flex',
-            'alignItems': 'center',
-            'justifyContent': 'center',
-            'padding': '15px 30px',
-            'backgroundColor': '#f5f6fa',
-            'boxShadow': '0 2px 5px rgba(0,0,0,0.1)',
-            'position': 'sticky',
-            'top': 0,
-            'zIndex': 100
-        })
-    ])
+            'padding': '10px 30px 4px',
+        }),
+        # Collapsible user guide
+        create_user_guide(),
+        # Step flow stepper
+        create_step_flow(),
+    ], id='persistent-header')
 
 
 def create_main_content_area():
-    """Create the main content area"""
+    """Create the scrollable main content area below the fixed header"""
     return html.Div([
         html.Div(id='section-content', children=get_data_investigation_content()),
     ], style={
@@ -959,25 +1009,19 @@ def create_app_layout():
             dcc.Graph(id='leak-data-histogram', style={'display': 'none'}),
             html.Div(id='wind-data-status', style={'display': 'none'}),
             html.Div(id='simulation-status', style={'display': 'none'}),
-            # From Results section
-            html.Div(id='results-summary-cards', style={'display': 'none'}),
-            html.Div(id='results-charts-container', style={'display': 'none'}),
-            html.Div(id='results-statistics-table', style={'display': 'none'}),
-            html.Div(id='results-metadata-display', style={'display': 'none'}),
-            html.Button('Download Results as CSV', id='download-results-csv-button', n_clicks=0, style={'display': 'none'}),
-            dcc.Download(id='download-results-csv'),
-            html.Div(id='simulation-results-display', style={'display': 'none'}),
+            # Results section elements are NOT duplicated here.
+            # They exist only inside get_results_content() to avoid duplicate-ID issues.
         ], style={'display': 'none'}),
         
-        # Top navigation bar
-        create_top_navigation(),
-        
-        # Main content area
-        create_main_content_area(),
-        
-        # Footer
-        create_footer()
-    ], style={'minHeight': '100vh', 'backgroundColor': '#f5f6fa', 'display': 'flex', 'flexDirection': 'column'})
+        # Persistent header (fixed at top: title + user guide + step flow)
+        create_header_section(),
+
+        # Scrollable content area below the fixed header
+        html.Div([
+            create_main_content_area(),
+            create_footer(),
+        ], id='scrollable-content'),
+    ], style={'minHeight': '100vh', 'backgroundColor': '#f5f6fa'})
 
 
 def create_mapping_modal():
@@ -997,7 +1041,7 @@ def create_mapping_modal():
         {'id': 'start_time', 'label': 'Start Time (Temporal Bound)', 'required': False, 'description': 'Start time of the emission if known'},
         {'id': 'end_time', 'label': 'End Time (Temporal Bound)', 'required': False, 'description': 'End time of the emission known'},
         {'id': 'uncertainties', 'label': 'Uncertainties', 'required': False, 'description': 'Uncertainty values for emission measurements'},
-        {'id': 'observation_type', 'label': 'Observation Type', 'required': False, 'description': 'Type of observation (e.g., "operation" for operational events)'}
+        {'id': 'observation_type', 'label': 'Observation Procedure', 'required': False, 'description': 'Procedure that has been used to observe the event (e.g., "operation" for operational events)'}
     ]
     
     mapping_rows = []
